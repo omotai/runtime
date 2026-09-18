@@ -1,0 +1,25 @@
+# Secrets
+.env
+*.pem
+*.key
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Run artifacts
+runs/
+audit/
+results/raw/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
