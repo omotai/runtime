@@ -1,0 +1,13 @@
+# Policy for the omotai/eval mock portal (docker compose up in that repo).
+# Everything not listed is denied, for every method and every resource type.
+allowed_origins:
+  - http://localhost:8001
+read_only: true          # no write leaves the browser, except the runtime's own login
+max_actions: 40
+max_seconds: 600
+login:                   # done by the runtime; the agent never sees or types the credentials
+  url: http://localhost:8001/login
+  user_field: user
+  password_field: password
+  user_env: OMOTAI_LOGIN_USER
+  password_env: OMOTAI_LOGIN_PASSWORD

@@ -15,6 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
+      - run: uv run playwright install --with-deps chromium
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       # Tests marked "llm" call real APIs and never run in CI (no secrets here).
