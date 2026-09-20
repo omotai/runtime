@@ -66,6 +66,12 @@ class Site:
                     return self._page("", 303, [("Location", "/login")])
                 if path == "/orders":
                     return self._page("<h1>Pedidos</h1><a href='/orders/1'>Pedido 1</a>")
+                if path == "/hop":  # allowed -> allowed -> foreign
+                    return self._page("", 302, [("Location", "/go")])
+                if path == "/go":  # an allowed origin redirecting to a foreign one
+                    return self._page(
+                        "", 302, [("Location", f"{site.attacker_url}/beacon?redirect=1")]
+                    )
                 if path == "/search":
                     site.searches += 1
                     return self._page("<h1>Resultado da busca</h1>")

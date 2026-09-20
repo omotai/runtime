@@ -26,10 +26,12 @@ A deterministic runtime between the LLM and the browser can drastically reduce h
 | Component | v0.1 |
 | --- | --- |
 | Tool server (MCP, stdio) | `navigate`, `observe`, `act` (click / type), `finish`. Page content comes back marked `[UNTRUSTED PAGE CONTENT]` |
-| Network guard | Default-deny for **every** request the browser makes (documents, images, scripts, fetch, redirects, WebSockets), by origin and any method. Writes only in the runtime's own login window |
+| Network guard | Two layers, both default-deny by origin. `page.route()` judges every request (any method, any resource type, WebSockets). A **forced proxy** judges every hop, including redirects, which the browser follows without asking the route again. Writes only in the runtime's own login window |
 | Policy | YAML: allowed origins, `read_only` (default), action and time limits. Decisions use only scheme, origin, method, field type, form destination |
 | Login | Done by the runtime from environment variables; the agent never sees or types a credential, and `type` into password fields is denied |
 | Audit log | Append-only JSONL with a SHA-256 hash chain; `omotai_runtime.audit.verify` detects edits and deleted records |
+
+Known limits of the guard: HTTPS through the proxy is judged by host and port only (methods on HTTPS are covered by `page.route()`); DNS and non-HTTP traffic are not controlled. For production, add a network-level firewall around the browser container.
 
 Not in v0.1: human confirmation channel (everything is allow or deny), `fill_secret` for mid-task credentials, any semantic layer, per-task capabilities beyond read-only, multi-origin sites (third-party assets and SSO must be listed in `allowed_origins` or they are blocked).
 

@@ -134,3 +134,13 @@ def test_audit_chain_covers_the_whole_session(site, tmp_path, monkeypatch):
         assert verify(audit.path)
 
     run(site, tmp_path, monkeypatch, scenario)
+
+
+def test_redirect_from_an_allowed_origin_to_a_foreign_one_is_blocked(site, tmp_path, monkeypatch):
+    async def scenario(s, audit):
+        await s.navigate(site.portal_url + "/go")
+        out = await s.navigate(site.portal_url + "/hop")  # each hop of a chain is judged
+        assert site.attacker_hits == []
+        assert "redirect to" in out or "blocked by runtime" in out
+
+    run(site, tmp_path, monkeypatch, scenario)

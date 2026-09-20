@@ -10,9 +10,18 @@ SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 LOCAL_SCHEMES = frozenset({"data", "blob", "about"})  # no network involved
 
 
+DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
 def origin_of(url: str) -> str:
+    """scheme://host[:port], lowercase host, default port dropped: 'https://a:443' == 'https://a'."""
     p = urlsplit(url)
-    return f"{p.scheme}://{p.netloc}"
+    host = (p.hostname or "").lower()
+    host = f"[{host}]" if ":" in host else host
+    port = p.port
+    if port is None or DEFAULT_PORTS.get(p.scheme) == port:
+        return f"{p.scheme}://{host}"
+    return f"{p.scheme}://{host}:{port}"
 
 
 @dataclass(frozen=True)
@@ -44,7 +53,7 @@ class Policy:
     @classmethod
     def load(cls, path: str | Path) -> "Policy":
         raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-        raw["allowed_origins"] = frozenset(raw["allowed_origins"])
+        raw["allowed_origins"] = frozenset(origin_of(o) for o in raw["allowed_origins"])
         return cls(**raw)
 
     def origin_allowed(self, url: str) -> bool:

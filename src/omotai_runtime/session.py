@@ -18,6 +18,7 @@ from urllib.parse import urldefrag
 from playwright.async_api import async_playwright
 
 from omotai_runtime.audit import Audit
+from omotai_runtime.netguard import Proxy
 from omotai_runtime.policy import Decision, Policy, deny
 
 ENUM_JS = """
@@ -61,8 +62,12 @@ class Session:
 
     async def start(self) -> None:
         self._pw = await async_playwright().start()
+        self._proxy = Proxy(self._proxy_decide, self._proxy_report)
+        port = await self._proxy.start()
         launch = {"executable_path": self.browser_path} if self.browser_path else {}
-        self._browser = await self._pw.chromium.launch(**launch)
+        # "<-loopback>" makes Chromium send localhost traffic through the proxy too
+        proxy = {"server": f"http://127.0.0.1:{port}", "bypass": "<-loopback>"}
+        self._browser = await self._pw.chromium.launch(proxy=proxy, **launch)
         self._ctx = await self._browser.new_context()
         await self._ctx.route("**/*", self._guard)
         await self._ctx.route_web_socket("**/*", self._deny_websocket)
@@ -74,6 +79,15 @@ class Session:
     async def close(self) -> None:
         await self._browser.close()
         await self._pw.stop()
+        await self._proxy.stop()
+
+    def _proxy_decide(self, method: str, url: str) -> Decision:
+        return self.policy.check_request(method, url, self.write_ok)
+
+    def _proxy_report(self, method: str, url: str, d: Decision) -> None:
+        """Every hop the browser makes goes through the proxy, redirects included."""
+        self.audit.log(event="proxy_deny", method=method, url=self._redact(url), rule=d.rule)
+        self.blocked.append(f"{method} {self._redact(url)} ({d.rule}, proxy)")
 
     def _redact(self, text: str) -> str:
         for secret in self._secrets:
