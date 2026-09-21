@@ -48,7 +48,7 @@ def test_agent_sees_only_the_runtime_tools_and_cannot_leave_the_origin(site, tmp
         async with stdio_client(params) as (r, w), ClientSession(r, w) as s:
             await s.initialize()
             names = {t.name for t in (await s.list_tools()).tools}
-            assert names == {"navigate", "observe", "act", "finish"}
+            assert names == {"navigate", "observe", "back", "act", "finish"}
             page = text(await s.call_tool("navigate", {"url": site.portal_url + "/orders/1"}))
             assert "[UNTRUSTED PAGE CONTENT" in page and "Status: Enviado" in page
             assert PASSWORD not in page
