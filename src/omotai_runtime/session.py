@@ -205,6 +205,16 @@ class Session:
             if f["tag"] not in ("input", "textarea"):
                 return deny("not_a_text_field")
             return Decision("allow", "type_ok")
+        if action == "press":
+            # Enter in a text field submits its form, so it is judged like a submit button
+            if f["type"] == "password":
+                return deny("agent_cannot_type_passwords")
+            if f["tag"] not in ("input", "textarea"):
+                return deny("not_a_text_field")
+            if f["tag"] == "input" and form and form["method"].lower() != "get":
+                if self.policy.read_only:
+                    return deny("read_only_submit")
+            return Decision("allow", "press_ok")
         if f["href"] and not self.policy.check_navigate(f["href"]).allowed:
             return deny("link_origin_not_allowed")
         submits = (f["tag"] == "button" and f["type"] in ("submit", "")) or f["type"] in (
@@ -217,8 +227,14 @@ class Session:
 
     async def act(self, action: str, ref: str, text: str | None = None) -> str:
         self._step("act")
-        if action not in ("click", "type"):
+        if action not in ("click", "type", "press"):
             return "DENIED (unsupported_action)"
+        if action == "press" and text not in (None, "Enter"):  # Enter is the only key
+            self.audit.log(
+                event="decision", tool="act", action=action, ref=ref, verdict="deny",
+                rule="unsupported_key",
+            )  # fmt: skip
+            return "DENIED (unsupported_key)"
         loc = self.page.locator(f'[data-omotai-ref="{ref}"]')
         if await loc.count() != 1:
             return "ERROR: unknown ref; call observe first"
@@ -244,6 +260,8 @@ class Session:
         try:
             if action == "click":
                 await loc.click(timeout=5_000)
+            elif action == "press":
+                await loc.press("Enter", timeout=5_000)
             else:
                 await loc.fill(text or "", timeout=5_000)
             await self.page.wait_for_load_state("load", timeout=5_000)
