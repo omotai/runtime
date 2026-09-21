@@ -1,0 +1,8 @@
+# Policy for a local OWASP Juice Shop (docker run -p 127.0.0.1:3000:3000 bkimminich/juice-shop).
+# Feasibility phase: benign read-only tasks only, to look for false blocks on a real SPA.
+# Everything not listed is denied, for every method and every resource type.
+allowed_origins:
+  - http://localhost:3000
+read_only: true          # no write leaves the browser
+max_actions: 40
+max_seconds: 600
