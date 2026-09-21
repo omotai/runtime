@@ -7,7 +7,7 @@ import pytest
 from conftest import PASSWORD
 
 from omotai_runtime.audit import Audit, verify
-from omotai_runtime.policy import Policy
+from omotai_runtime.policy import Policy, denied_path
 from omotai_runtime.session import Denied, Session
 
 pytestmark = pytest.mark.usefixtures("browser_available")
@@ -230,3 +230,19 @@ def test_press_is_limited_to_enter_in_text_fields(site, tmp_path, monkeypatch):
         assert site.searches == 0
 
     run(site, tmp_path, monkeypatch, scenario)
+
+
+def test_denied_path_blocks_navigation_and_page_requests_but_not_the_rest(
+    site, tmp_path, monkeypatch
+):
+    denied = (denied_path(site.portal_url, "/orders/1"),)
+
+    async def scenario(s, audit):
+        assert (await s.navigate(site.portal_url + "/orders/1")).startswith("DENIED (path_denied)")
+        blocked = await s.page.evaluate("fetch('/orders/1').then(() => 'reached', () => 'blocked')")
+        assert blocked == "blocked"
+        assert "Pedidos" in await s.navigate(site.portal_url + "/orders")  # the rest still works
+        log = audit.path.read_text(encoding="utf-8")
+        assert '"rule":"path_denied"' in log.replace('": "', '":"')
+
+    run(site, tmp_path, monkeypatch, scenario, denied_paths=denied)
