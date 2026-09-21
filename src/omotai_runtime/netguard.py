@@ -23,6 +23,7 @@ class Proxy:
         self.decide, self.report = decide, report
         self._server: asyncio.Server | None = None
         self.port = 0
+        self._addrs: dict[tuple[str, int], str] = {}  # (host, port) -> address that worked
 
     async def start(self) -> int:
         self._server = await asyncio.start_server(self._handle, "127.0.0.1", 0)
@@ -33,6 +34,25 @@ class Proxy:
         if self._server:
             self._server.close()
             await self._server.wait_closed()
+
+    async def _connect(self, host: str, port: int):
+        """Open the upstream connection without paying for the wrong address family.
+
+        `localhost` resolves to ::1 first. Where nothing listens on IPv6 (a container published on
+        IPv4 only) the refused connect takes about 2 s on Windows, and every proxied request paid
+        it: a page of 40 resources kept Chromium's 6 sockets busy for ~20 s. Race the families
+        (Happy Eyeballs) and remember the address that worked. Policy is decided on the host name
+        in the URL, never on the address, so this changes nothing about what is allowed.
+        """
+        key = (host, port)
+        if cached := self._addrs.get(key):
+            try:
+                return await asyncio.open_connection(cached, port)
+            except OSError:
+                del self._addrs[key]  # stale: resolve again
+        reader, writer = await asyncio.open_connection(host, port, happy_eyeballs_delay=0.25)
+        self._addrs[key] = writer.get_extra_info("peername")[0]
+        return reader, writer
 
     async def _refuse(self, writer, method: str, url: str, d: Decision) -> None:
         self.report(method, url, d)
@@ -64,7 +84,7 @@ class Proxy:
             d = self.decide("GET" if method == "CONNECT" else method, url)
             if not d.allowed:
                 return await self._refuse(writer, method, url, d)
-            up_reader, up_writer = await asyncio.open_connection(host, int(port))
+            up_reader, up_writer = await self._connect(host, int(port))
             if upstream_head is None:
                 writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
             else:

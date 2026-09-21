@@ -47,3 +47,49 @@ def test_proxy_forwards_allowed_and_refuses_foreign_origins(site):
         "read_only",
         "origin_not_allowed",
     ]
+
+
+class FakeWriter:
+    def __init__(self, ip):
+        self.ip = ip
+
+    def get_extra_info(self, name):
+        return (self.ip, 3000)
+
+
+def test_upstream_connect_races_address_families_and_remembers_the_winner(monkeypatch):
+    """`localhost` -> ::1 first costs ~2 s per connection on Windows when only IPv4 listens."""
+    calls = []
+
+    async def fake_open(host, port, **kw):
+        calls.append((host, port, kw))
+        return "reader", FakeWriter("127.0.0.1")
+
+    monkeypatch.setattr(asyncio, "open_connection", fake_open)
+    proxy = Proxy(lambda m, u: None, lambda m, u, d: None)
+
+    async def go():
+        await proxy._connect("localhost", 3000)
+        await proxy._connect("localhost", 3000)
+
+    asyncio.run(go())
+    assert calls[0] == ("localhost", 3000, {"happy_eyeballs_delay": 0.25})  # first: race
+    assert calls[1] == ("127.0.0.1", 3000, {})  # then straight to the address that worked
+
+
+def test_stale_remembered_address_falls_back_to_resolving_again(monkeypatch):
+    calls = []
+
+    async def fake_open(host, port, **kw):
+        calls.append(host)
+        if host == "10.0.0.9":
+            raise ConnectionRefusedError
+        return "reader", FakeWriter("127.0.0.1")
+
+    monkeypatch.setattr(asyncio, "open_connection", fake_open)
+    proxy = Proxy(lambda m, u: None, lambda m, u, d: None)
+    proxy._addrs[("localhost", 3000)] = "10.0.0.9"
+
+    asyncio.run(proxy._connect("localhost", 3000))
+    assert calls == ["10.0.0.9", "localhost"]
+    assert proxy._addrs[("localhost", 3000)] == "127.0.0.1"
