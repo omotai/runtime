@@ -156,7 +156,7 @@ class Session:
             extra = f" -> {e['href']}" if e["href"] else f" ({e['type']})" if e["type"] else ""
             lines.append(f'{e["ref"]} {e["tag"]} "{e["name"]}"{extra}')
         body = self._redact(f"url: {self.page.url}\n--- text ---\n{text}\n--- elements ---\n")
-        body += self._redact("\n".join(lines))
+        body += self._redact("\n".join(lines) if lines else "(no interactive elements)")
         self.audit.log(
             event="observe",
             url=self._redact(self.page.url),
@@ -180,6 +180,18 @@ class Session:
             await self.page.goto(url, timeout=30_000)
         except Exception as e:  # noqa: BLE001  # navigation errors are reported, not raised
             return f"ERROR: {type(e).__name__}"
+        return await self.observe()
+
+    async def back(self) -> str:
+        """Go to the previous page in history. Every request it triggers is still judged."""
+        self._step("back")
+        self.audit.log(event="decision", tool="back", verdict="allow", rule="history_back")
+        try:
+            resp = await self.page.go_back(timeout=30_000)
+        except Exception as e:  # noqa: BLE001  # navigation errors are reported, not raised
+            return f"ERROR: {type(e).__name__}"
+        if resp is None:
+            return "ERROR: no previous page"
         return await self.observe()
 
     def _decide_act(self, action: str, f: dict) -> Decision:

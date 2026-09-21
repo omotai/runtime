@@ -144,3 +144,33 @@ def test_redirect_from_an_allowed_origin_to_a_foreign_one_is_blocked(site, tmp_p
         assert "redirect to" in out or "blocked by runtime" in out
 
     run(site, tmp_path, monkeypatch, scenario)
+
+
+def test_back_returns_to_the_previous_page_and_is_audited(site, tmp_path, monkeypatch):
+    async def scenario(s, audit):
+        await s.navigate(site.portal_url + "/orders")
+        await s.navigate(site.portal_url + "/orders/1")
+        out = await s.back()
+        assert "url: " + site.portal_url + "/orders\n" in out
+        assert '"tool": "back"' in audit.path.read_text(encoding="utf-8").replace('":"', '": "')
+
+    run(site, tmp_path, monkeypatch, scenario)
+
+
+def test_back_without_history_is_an_error_not_a_crash(site, tmp_path, monkeypatch):
+    async def scenario(s, audit):
+        for _ in range(5):  # login and first page are in history; walk to its start
+            out = await s.back()
+            if out.startswith("ERROR"):
+                break
+        assert out == "ERROR: no previous page"
+
+    run(site, tmp_path, monkeypatch, scenario)
+
+
+def test_page_without_elements_says_so(site, tmp_path, monkeypatch):
+    async def scenario(s, audit):
+        await s.page.set_content("<h1>Só texto</h1>")
+        assert "(no interactive elements)" in await s.observe()
+
+    run(site, tmp_path, monkeypatch, scenario)

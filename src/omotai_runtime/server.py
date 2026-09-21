@@ -52,6 +52,11 @@ def build_server(policy: Policy, audit_path: str | Path) -> tuple[MCPServer, Ses
         return await guarded(session.observe())
 
     @mcp.tool()
+    async def back() -> str:
+        """Go back to the previous page and return it."""
+        return await guarded(session.back())
+
+    @mcp.tool()
     async def act(action: Literal["click", "type"], ref: str, text: str | None = None) -> str:
         """Click an element or type text into a field, by ref from the latest observation."""
         return await guarded(session.act(action, ref, text))
