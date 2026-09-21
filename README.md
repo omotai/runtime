@@ -25,7 +25,7 @@ A deterministic runtime between the LLM and the browser can drastically reduce h
 
 | Component | v0.1 |
 | --- | --- |
-| Tool server (MCP, stdio) | `navigate`, `observe`, `act` (click / type), `back`, `finish`. Page content comes back marked `[UNTRUSTED PAGE CONTENT]` |
+| Tool server (MCP, stdio) | `navigate`, `observe`, `act` (click / type / press Enter), `back`, `finish`. Page content comes back marked `[UNTRUSTED PAGE CONTENT]` |
 | Network guard | Two layers, both default-deny by origin. `page.route()` judges every request (any method, any resource type, WebSockets). A **forced proxy** judges every hop, including redirects, which the browser follows without asking the route again. Writes only in the runtime's own login window |
 | Policy | YAML: allowed origins, `read_only` (default), action and time limits. Decisions use only scheme, origin, method, field type, form destination |
 | Login | Done by the runtime from environment variables; the agent never sees or types a credential, and `type` into password fields is denied |
