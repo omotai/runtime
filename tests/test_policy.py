@@ -1,6 +1,6 @@
 import pytest
 
-from omotai_runtime.policy import Policy
+from omotai_runtime.policy import Policy, denied_path
 
 P = Policy(allowed_origins=frozenset({"http://portal.test"}))
 LOGIN_WRITE = frozenset({("POST", "http://portal.test/login")})
@@ -48,3 +48,94 @@ def test_load_from_yaml(tmp_path):
     f.write_text("allowed_origins: ['http://a.test']\nmax_actions: 5\n", encoding="utf-8")
     p = Policy.load(f)
     assert p.allowed_origins == {"http://a.test"} and p.max_actions == 5 and p.read_only
+
+
+D = Policy(
+    allowed_origins=frozenset({"http://portal.test", "http://other.test"}),
+    read_only=False,
+    denied_paths=(denied_path("http://portal.test", "/socket.io/"),),
+)
+
+
+@pytest.mark.parametrize(
+    "method", ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+)  # a path is denied for every method
+def test_denied_path_is_denied_for_every_method(method):
+    d = D.check_request(method, "http://portal.test/socket.io/?EIO=4&transport=polling")
+    assert (d.verdict, d.rule) == ("deny", "path_denied")
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://portal.test/socket.io",  # no trailing slash
+        "http://portal.test/socket.io/sub/path",
+        "http://portal.test/Socket.IO/",  # Express ignores case
+        "http://portal.test//socket.io/",  # empty segment
+        "http://portal.test/./socket.io/",
+        "http://portal.test/rest/../socket.io/",  # dot segments
+        "http://portal.test/socket%2Eio/",  # encoded dot
+        "http://portal.test/%73ocket.io/",  # encoded letter
+        "http://portal.test/socket.io%2F",  # encoded slash
+        "http://portal.test/%2573ocket.io/",  # double-encoded
+        "http://PORTAL.test:80/socket.io/",  # same origin, spelled differently
+    ],
+)
+def test_denied_path_cannot_be_sidestepped_by_spelling(url):
+    assert D.check_request("GET", url).rule == "path_denied"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://portal.test/socket.iox",  # segment boundary, not a text prefix
+        "http://portal.test/api/socket.io/",  # only a prefix of the path is denied
+        "http://portal.test/rest/products",
+        "http://other.test/socket.io/",  # another origin is not covered by this entry
+    ],
+)
+def test_paths_outside_the_denial_still_work(url):
+    assert D.check_request("GET", url).allowed
+
+
+def test_denial_wins_over_the_login_window_and_applies_to_navigation():
+    login = frozenset({("POST", "http://portal.test/socket.io/login")})
+    assert D.check_request("POST", "http://portal.test/socket.io/login", login).rule == (
+        "path_denied"
+    )
+    assert D.check_navigate("http://portal.test/socket.io/").rule == "path_denied"
+    assert D.check_navigate("http://portal.test/orders").allowed
+
+
+def test_denied_paths_load_from_yaml(tmp_path):
+    f = tmp_path / "p.yaml"
+    f.write_text(
+        "allowed_origins: [http://localhost:3000]\n"
+        "denied_paths:\n"
+        "  - {origin: 'http://localhost:3000', path_prefix: /socket.io/}\n",
+        encoding="utf-8",
+    )
+    p = Policy.load(f)
+    assert p.check_request("GET", "http://localhost:3000/socket.io/?EIO=4").rule == "path_denied"
+    assert p.check_request("GET", "http://localhost:3000/rest/products/search").allowed
+
+
+@pytest.mark.parametrize(
+    ("entry", "why"),
+    [
+        ("{origin: 'http://a.test', path_prefix: /}", "whole origin"),
+        ("{origin: 'http://a.test', path_prefix: socket.io}", "must start with"),
+        ("{origin: 'http://a.test'}", "needs origin and path_prefix"),
+        (
+            "{origin: 'http://a.test', path_prefix: /x/, method: GET}",
+            "needs origin and path_prefix",
+        ),
+    ],
+)
+def test_bad_denied_paths_config_fails_at_load(tmp_path, entry, why):
+    f = tmp_path / "p.yaml"
+    f.write_text(
+        f"allowed_origins: [http://a.test]\ndenied_paths:\n  - {entry}\n", encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match=why):
+        Policy.load(f)

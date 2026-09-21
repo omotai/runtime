@@ -1,0 +1,11 @@
+# Same as juice-shop.yaml, with the Socket.IO realtime channel denied outright (issue #10, #13).
+# Its client falls back to long-polling, whose POSTs read_only denies, then reconnects in a loop
+# that leaves allowed GETs pending and exhausts the browser's 6 connections per host.
+allowed_origins:
+  - http://localhost:3000
+denied_paths:
+  - origin: http://localhost:3000
+    path_prefix: /socket.io/
+read_only: true
+max_actions: 40
+max_seconds: 600
