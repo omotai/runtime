@@ -9,6 +9,7 @@ def init_db():
     os.makedirs(DB_PATH.parent, exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL;")
         # API Keys table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS agents (
@@ -31,4 +32,6 @@ def init_db():
 
 
 def get_connection():
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    return conn

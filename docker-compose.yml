@@ -1,23 +1,30 @@
 version: '3.8'
 
 services:
-  omotai-runtime:
+  omotai-ui:
     build: .
-    container_name: omotai-runtime
+    container_name: omotai-ui
     ports:
       - "8080:8080"
     volumes:
       - ./runs:/app/runs
-      # É possível montar as suas próprias policies aqui, por padrão usamos a de teste:
-      # - ./sua-policy.yaml:/app/policy.yaml
-    
-    # Fundamental para servidores MCP baseados em STDIO rodando no Docker.
-    # Evita que o EOF seja disparado no STDIN e termine a execução.
+    command: ["omotai", "start", "--dashboard", "--port", "8080", "--policy", "/app/policy.yaml"]
     stdin_open: true
     tty: true
-    
     environment:
       - PYTHONUNBUFFERED=1
-      # Identificação deste agente local
       - OMOTAI_AGENT_KEY=dashboard-default-key
-      
+
+  omotai-runtime:
+    build: .
+    container_name: omotai-runtime
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./runs:/app/runs
+    command: ["omotai", "start", "--mode", "sse", "--port", "8000", "--policy", "/app/policy.yaml"]
+    stdin_open: true
+    tty: true
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OMOTAI_AGENT_KEY=dashboard-default-key

@@ -113,17 +113,15 @@ def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int)
 
     mcp, _ = build_server(Policy.load(policy), audit_logger)
 
-    if mode == "stdio":
-        if dashboard:
-            click.secho(
-                "WARNING: Dashboard is not fully supported in stdio mode yet.",
-                fg="yellow",
-                err=True,
-            )
+    if dashboard:
+        from omotai_runtime.dashboard.server import start_dashboard
+
+        start_dashboard(port)
+    elif mode == "stdio":
         mcp.run("stdio")
-    else:
-        click.secho("SSE mode is not fully implemented yet.", fg="red", err=True)
-        raise click.Abort()
+    elif mode == "sse":
+        click.secho(f"Starting SSE mode on 0.0.0.0:{port}...", fg="green")
+        mcp.run("sse", host="0.0.0.0", port=port)  # noqa: S104
 
 
 if __name__ == "__main__":
