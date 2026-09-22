@@ -24,9 +24,23 @@ class Audit:
         record = {"ts": round(time.time(), 3), **event}
         record["prev"] = self.prev
         record["hash"] = _digest(self.prev, {k: v for k, v in record.items() if k != "prev"})
+
+        if self.path.exists() and self.path.stat().st_size >= 5 * 1024 * 1024:
+            self._rotate()
+
         with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
         self.prev = record["hash"]
+
+    def _rotate(self):
+        for i in range(4, 0, -1):
+            src = self.path.with_name(f"{self.path.name}.{i}")
+            dst = self.path.with_name(f"{self.path.name}.{i + 1}")
+            if src.exists():
+                src.rename(dst)
+        if self.path.exists():
+            self.path.rename(self.path.with_name(f"{self.path.name}.1"))
 
 
 def verify(path: str | Path) -> bool:

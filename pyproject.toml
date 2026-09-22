@@ -6,13 +6,19 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
 dependencies = [
+    "click>=8.0.0",
+    "fastapi>=0.100.0",
     "mcp>=2.2.0",
     "playwright>=1.63.0",
     "pyyaml>=6.0.3",
+    "uvicorn>=0.20.0",
 ]
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+omotai = "omotai_runtime.server:cli"
 
 [build-system]
 requires = ["hatchling"]

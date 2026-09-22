@@ -1,3 +1,4 @@
-from omotai_runtime.server import main
+from omotai_runtime.server import cli
 
-main()
+if __name__ == "__main__":
+    cli()
