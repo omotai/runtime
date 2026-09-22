@@ -1,0 +1,10 @@
+allowed_origins:
+  - "http://localhost:*"
+  - "http://127.0.0.1:*"
+  - "https://*"
+
+read_only: false
+max_actions: 100
+max_seconds: 3600
+
+secrets: []
