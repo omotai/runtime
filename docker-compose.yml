@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   omotai-ui:
-    build: .
+    build:
+      context: .
+      dockerfile: src/omotai/dashboard/Dockerfile
     container_name: omotai-ui
     ports:
       - "8080:8080"
@@ -16,7 +18,9 @@ services:
       - OMOTAI_AGENT_KEY=dashboard-default-key
 
   omotai-runtime:
-    build: .
+    build:
+      context: .
+      dockerfile: src/omotai/runtime/Dockerfile
     container_name: omotai-runtime
     ports:
       - "8000:8000"
