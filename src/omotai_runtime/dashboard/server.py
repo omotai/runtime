@@ -3,6 +3,8 @@ import threading
 import uuid
 from pathlib import Path
 
+import asyncio
+from sse_starlette.sse import EventSourceResponse
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -92,6 +94,24 @@ def delete_secret(secret_id: int):
         conn.commit()
         return {"status": "ok"}
 
+@app.get("/api/logs/stream")
+async def stream_logs():
+    async def log_generator():
+        log_path = Path("runs/audit.jsonl")
+        if not log_path.exists():
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.touch()
+        
+        with open(log_path, "r", encoding="utf-8") as f:
+            while True:
+                line = f.readline()
+                if not line:
+                    await asyncio.sleep(0.2)
+                    continue
+                yield {"data": line.strip()}
+                
+    return EventSourceResponse(log_generator())
+
 
 # Static files (Frontend)
 static_dir = Path(__file__).parent / "static"
@@ -106,7 +126,7 @@ app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 
 
 def start_dashboard(port: int = 8080):
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="error")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
 
 
 def run_in_background(port: int = 8080):
