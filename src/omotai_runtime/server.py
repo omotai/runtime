@@ -110,7 +110,7 @@ def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int)
     # Pre-flight audit event
     audit_logger = Audit(audit_path)
     # Exposing internal log to record startup config (we can properly type this later)
-        # Currently Audit only has specific methods. We'll add custom events when hardening logs.
+    # Currently Audit only has specific methods. We'll add custom events when hardening logs.
 
     mcp, _ = build_server(Policy.load(policy), audit_logger)
 
