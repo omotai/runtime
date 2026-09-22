@@ -21,6 +21,3 @@ services:
       # Identificação deste agente local
       - OMOTAI_AGENT_KEY=dashboard-default-key
       
-      # Variáveis de ambiente exigidas pela test_policy.yaml
-      - # T_USER=omotai-admin
-      - # T_PASS=dummy-pass-123
