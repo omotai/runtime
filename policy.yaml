@@ -9,5 +9,3 @@ allowed_origins:
 read_only: false
 max_actions: 100
 max_seconds: 3600
-
-secrets: []
