@@ -1,6 +1,6 @@
 import pytest
 
-from omotai_runtime.policy import Policy, denied_path
+from omotai.runtime.policy import Policy, denied_path
 
 P = Policy(allowed_origins=frozenset({"http://portal.test"}))
 LOGIN_WRITE = frozenset({("POST", "http://portal.test/login")})

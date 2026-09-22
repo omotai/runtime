@@ -8,9 +8,9 @@ from typing import Literal
 import click
 from mcp.server.mcpserver import MCPServer
 
-from omotai_runtime.audit import Audit
-from omotai_runtime.policy import Policy
-from omotai_runtime.session import Denied, Session
+from omotai.runtime.audit import Audit
+from omotai.runtime.policy import Policy
+from omotai.runtime.session import Denied, Session
 
 
 def build_server(policy: Policy, audit: Audit) -> tuple[MCPServer, Session]:
@@ -114,7 +114,7 @@ def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int)
     mcp, _ = build_server(Policy.load(policy), audit_logger)
 
     if dashboard:
-        from omotai_runtime.dashboard.server import start_dashboard
+        from omotai.dashboard.server import start_dashboard
 
         start_dashboard(port)
     elif mode == "stdio":
