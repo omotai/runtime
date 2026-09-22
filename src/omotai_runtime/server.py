@@ -1,7 +1,6 @@
 """MCP server: the only tools the agent gets. Page content always comes back marked untrusted."""
 
 import os
-import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Literal
@@ -105,7 +104,7 @@ def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int)
             err=True,
         )
 
-    audit_path = audit or f"runs/audit-{int(time.time())}.jsonl"
+    audit_path = audit or "runs/audit.jsonl"
 
     # Pre-flight audit event
     audit_logger = Audit(audit_path)
