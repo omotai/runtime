@@ -94,6 +94,7 @@ def delete_secret(secret_id: int):
         conn.commit()
         return {"status": "ok"}
 
+
 @app.get("/api/logs/stream")
 async def stream_logs():
     async def log_generator():
@@ -101,7 +102,7 @@ async def stream_logs():
         if not log_path.exists():
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log_path.touch()
-        
+
         with open(log_path, encoding="utf-8") as f:
             while True:
                 line = f.readline()
@@ -109,7 +110,7 @@ async def stream_logs():
                     await asyncio.sleep(0.2)
                     continue
                 yield {"data": line.strip()}
-                
+
     return EventSourceResponse(log_generator())
 
 

@@ -115,6 +115,7 @@ def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int)
 
     if dashboard:
         from omotai_runtime.dashboard.server import start_dashboard
+
         start_dashboard(port)
     elif mode == "stdio":
         mcp.run("stdio")
