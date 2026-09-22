@@ -120,7 +120,7 @@ def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int)
         mcp.run("stdio")
     elif mode == "sse":
         click.secho(f"Starting SSE mode on 0.0.0.0:{port}...", fg="green")
-        mcp.run("sse", host="0.0.0.0", port=port)
+        mcp.run("sse", host="0.0.0.0", port=port)  # noqa: S104
 
 
 if __name__ == "__main__":

@@ -1,14 +1,14 @@
+import asyncio
 import os
 import threading
 import uuid
 from pathlib import Path
 
-import asyncio
-from sse_starlette.sse import EventSourceResponse
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from sse_starlette.sse import EventSourceResponse
 
 from omotai_runtime.dashboard.db import get_connection, init_db
 
@@ -102,7 +102,7 @@ async def stream_logs():
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log_path.touch()
         
-        with open(log_path, "r", encoding="utf-8") as f:
+        with open(log_path, encoding="utf-8") as f:
             while True:
                 line = f.readline()
                 if not line:
@@ -126,7 +126,7 @@ app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 
 
 def start_dashboard(port: int = 8080):
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")  # noqa: S104
 
 
 def run_in_background(port: int = 8080):
