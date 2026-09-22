@@ -6,9 +6,9 @@ import re
 import pytest
 from conftest import PASSWORD
 
-from omotai_runtime.audit import Audit, verify
-from omotai_runtime.policy import Policy, denied_path
-from omotai_runtime.session import Denied, Session
+from omotai.runtime.audit import Audit, verify
+from omotai.runtime.policy import Policy, denied_path
+from omotai.runtime.session import Denied, Session
 
 pytestmark = pytest.mark.usefixtures("browser_available")
 

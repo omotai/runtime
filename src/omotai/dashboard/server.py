@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from omotai_runtime.dashboard.db import get_connection, init_db
+from omotai.dashboard.db import get_connection, init_db
 
 app = FastAPI(title="Omotai Runtime Dashboard")
 

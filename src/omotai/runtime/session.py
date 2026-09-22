@@ -17,9 +17,9 @@ from urllib.parse import urldefrag
 
 from playwright.async_api import async_playwright
 
-from omotai_runtime.audit import Audit
-from omotai_runtime.netguard import Proxy
-from omotai_runtime.policy import Decision, Policy, deny
+from omotai.runtime.audit import Audit
+from omotai.runtime.netguard import Proxy
+from omotai.runtime.policy import Decision, Policy, deny
 
 ENUM_JS = """
 () => {
@@ -61,7 +61,7 @@ class Session:
         self._secrets: list[str] = []
 
         try:
-            from omotai_runtime.dashboard.db import get_connection
+            from omotai.dashboard.db import get_connection
 
             with get_connection() as conn:
                 cursor = conn.cursor()
