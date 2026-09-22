@@ -106,7 +106,7 @@ app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 
 
 def start_dashboard(port: int = 8080):
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="error")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="error")
 
 
 def run_in_background(port: int = 8080):
