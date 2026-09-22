@@ -19,4 +19,4 @@ EXPOSE 8080
 
 # O comando padrão liga o servidor e o dashboard.
 # No docker-compose, manteremos o stdin_open e tty ativos para não encerar o processo MCP.
-CMD ["omotai", "start", "--dashboard", "--port", "8080", "--policy", "/app/tests/test_policy.yaml"]
+CMD ["omotai", "start", "--dashboard", "--port", "8080", "--policy", "/app/policy.yaml"]
