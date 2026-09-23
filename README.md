@@ -35,9 +35,11 @@ A deterministic runtime between the LLM and the browser can drastically reduce h
 | Login | Done by the runtime from environment variables; the agent never sees or types a credential, and `type` into password fields is denied |
 | Audit log | Append-only JSONL with a SHA-256 hash chain; `omotai.runtime.audit.verify` detects edits and deleted records |
 
+**Human confirmation.** With `read_only: true` and `confirm_writes: true` (see `policies/eval-portal-confirm.yaml`), a form submit to an allowed origin is not denied but waits for the operator on the dashboard (Human Approvals). The runtime, not the model, asks: the text shown is built from facts (method, form URL, field names and values), and only `approved` or `denied` ever reaches the agent. An approval opens a write window for that exact request during that one action; if the page changed while the operator decided, or nobody answers within `confirm_timeout_seconds`, the action is denied. `max_confirmations` caps how often a session can ask. Writes that do not come from a form in the DOM (fetch/JS) stay denied. The `ask_human` tool remains as a voluntary extra channel; it does not gate anything by itself.
+
 Known limits of the guard: HTTPS through the proxy is judged by host and port only (methods on HTTPS are covered by `page.route()`); DNS and non-HTTP traffic are not controlled. For production, add a network-level firewall around the browser container.
 
-Not in v0.1: human confirmation channel (everything is allow or deny), `fill_secret` for mid-task credentials, any semantic layer, per-task capabilities beyond read-only, multi-origin sites (third-party assets and SSO must be listed in `allowed_origins` or they are blocked).
+Not in v0.1: `fill_secret` for mid-task credentials, any semantic layer, per-task capabilities beyond read-only, multi-origin sites (third-party assets and SSO must be listed in `allowed_origins` or they are blocked).
 
 ```bash
 # policy for the eval mock portal; credentials come from the environment

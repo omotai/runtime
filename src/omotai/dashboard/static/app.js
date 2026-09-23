@@ -200,6 +200,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tdReason = document.createElement('td');
                 tdReason.textContent = a.reason;
                 
+                const tdSource = document.createElement('td');
+                tdSource.textContent = a.source === 'runtime' ? 'runtime (facts)' : 'agent (model text)';
+
                 const tdSessionId = document.createElement('td');
                 tdSessionId.textContent = a.session_id.substring(0, 8) + '...';
                 
@@ -218,6 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 tr.appendChild(tdReason);
+                tr.appendChild(tdSource);
                 tr.appendChild(tdSessionId);
                 tr.appendChild(tdDate);
                 tr.appendChild(tdStatus);

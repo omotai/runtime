@@ -62,12 +62,17 @@ def denied_path(origin: str, path_prefix: str) -> tuple[str, tuple[str, ...]]:
 
 @dataclass(frozen=True)
 class Decision:
-    verdict: str  # "allow" | "deny"
+    verdict: str  # "allow" | "deny" | "confirm"
     rule: str
 
     @property
     def allowed(self) -> bool:
+        """Only allow. Code that does not know `confirm` therefore treats it as a block."""
         return self.verdict == "allow"
+
+    @property
+    def needs_confirm(self) -> bool:
+        return self.verdict == "confirm"
 
 
 def allow(rule: str) -> Decision:
@@ -76,6 +81,10 @@ def allow(rule: str) -> Decision:
 
 def deny(rule: str) -> Decision:
     return Decision("deny", rule)
+
+
+def confirm(rule: str) -> Decision:
+    return Decision("confirm", rule)
 
 
 @dataclass(frozen=True)
@@ -88,6 +97,17 @@ class Policy:
     # (origin, path segments): every request to that origin under that path is denied, any method,
     # even for an allowed origin and inside the login window. Build entries with `denied_path`.
     denied_paths: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    # A form submit that read_only would deny waits for a human instead: the runtime opens a write
+    # window for that exact (method, URL) only if the operator approves. Needs read_only: true.
+    confirm_writes: bool = False
+    confirm_timeout_seconds: int = 30  # unanswered = denied
+    max_confirmations: int = 3  # per session; more are denied without bothering the operator
+
+    def __post_init__(self):
+        if self.confirm_writes and not self.read_only:
+            raise ValueError("confirm_writes needs read_only: true (writes stay denied by default)")
+        if self.confirm_timeout_seconds < 1 or self.max_confirmations < 0:
+            raise ValueError("confirm_timeout_seconds must be >= 1 and max_confirmations >= 0")
 
     @classmethod
     def load(cls, path: str | Path) -> "Policy":

@@ -210,3 +210,47 @@ def test_domain_cli_exits_nonzero_on_bad_flags():
     r = CliRunner()
     assert r.invoke(cli, ["domain", "add", "http://a.test"]).exit_code == 1
     assert r.invoke(cli, ["domain", "add", "http://a.test", "--allow", "--deny"]).exit_code == 1
+
+
+def test_confirm_verdict_is_not_allowed_and_needs_a_read_only_policy():
+    from omotai.runtime.policy import confirm
+
+    d = confirm("write_needs_confirmation")
+    assert d.needs_confirm and not d.allowed  # code that ignores `confirm` treats it as a block
+    with pytest.raises(ValueError, match="read_only"):
+        Policy(allowed_origins=frozenset(), read_only=False, confirm_writes=True)
+    with pytest.raises(ValueError, match="confirm_timeout_seconds"):
+        Policy(allowed_origins=frozenset(), confirm_writes=True, confirm_timeout_seconds=0)
+
+
+def test_submit_decision_is_confirm_only_with_confirm_writes(tmp_path):
+    from omotai.runtime.audit import Audit
+    from omotai.runtime.session import Session
+
+    def decide(policy, form):
+        s = Session(policy, Audit(tmp_path / "a.jsonl"))
+        facts = {"tag": "button", "type": "submit", "href": None, "form": form}
+        return s._decide_act("click", facts)
+
+    post = {"method": "post", "action": "http://portal.test/cancel"}
+    origins = frozenset({"http://portal.test"})
+    plain = decide(Policy(allowed_origins=origins), post)
+    assert (plain.verdict, plain.rule) == ("deny", "read_only_submit")
+    asked = decide(Policy(allowed_origins=origins, confirm_writes=True), post)
+    assert (asked.verdict, asked.rule) == ("confirm", "write_needs_confirmation")
+    # a foreign destination is never worth asking about, and a GET form needs no confirmation
+    foreign = {"method": "post", "action": "http://evil.test/collect"}
+    assert decide(Policy(allowed_origins=origins, confirm_writes=True), foreign).verdict == "deny"
+    get = {"method": "get", "action": "http://portal.test/search"}
+    assert decide(Policy(allowed_origins=origins, confirm_writes=True), get).verdict == "allow"
+
+
+def test_policy_yaml_accepts_the_confirm_fields(tmp_path):
+    f = tmp_path / "p.yaml"
+    f.write_text(
+        "allowed_origins: [http://portal.test]\nread_only: true\nconfirm_writes: true\n"
+        "confirm_timeout_seconds: 5\nmax_confirmations: 2\n",
+        encoding="utf-8",
+    )
+    p = Policy.load(f)
+    assert (p.confirm_writes, p.confirm_timeout_seconds, p.max_confirmations) == (True, 5, 2)

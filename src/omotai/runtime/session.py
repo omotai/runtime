@@ -17,9 +17,10 @@ from urllib.parse import urldefrag
 
 from playwright.async_api import async_playwright
 
+from omotai.runtime.approvals import await_decision, create_approval
 from omotai.runtime.audit import Audit
 from omotai.runtime.netguard import Proxy
-from omotai.runtime.policy import Decision, Policy, deny
+from omotai.runtime.policy import Decision, Policy, confirm, deny
 
 ENUM_JS = """
 () => {
@@ -45,6 +46,25 @@ ENUM_JS = """
 """
 
 
+FACTS_JS = (
+    "el => ({tag: el.tagName.toLowerCase(), type: el.type || '',"
+    " href: el.tagName === 'A' ? el.href : null,"
+    " form: (el.form || el.closest('form')) ?"
+    " {method: (el.form || el.closest('form')).method,"
+    " action: (el.form || el.closest('form')).action} : null})"
+)
+
+# What the operator sees of a form: named fields except password/hidden/file, values truncated.
+FIELDS_JS = """
+el => {
+  const f = el.form || el.closest('form');
+  return [...f.elements]
+    .filter(x => x.name && !['password', 'hidden', 'file', 'submit', 'button'].includes(x.type))
+    .slice(0, 10).map(x => [x.name, String(x.value).slice(0, 100)]);
+}
+"""
+
+
 class Denied(Exception):
     pass
 
@@ -56,6 +76,7 @@ class Session:
         self.write_ok: frozenset[tuple[str, str]] = frozenset()
         self.blocked: list[str] = []
         self.actions = 0
+        self.confirmations = 0
         self.started = 0.0
         self.answer: str | None = None
         self._secrets: list[str] = []
@@ -262,7 +283,7 @@ class Session:
                 return deny("not_a_text_field")
             if f["tag"] == "input" and form and form["method"].lower() != "get":
                 if self.policy.read_only:
-                    return deny("read_only_submit")
+                    return self._blocked_write()
             return Decision("allow", "press_ok")
         if f["href"] and not self.policy.check_navigate(f["href"]).allowed:
             return deny("link_origin_not_allowed")
@@ -271,8 +292,53 @@ class Session:
             "image",
         )
         if submits and form and form["method"].lower() != "get" and self.policy.read_only:
-            return deny("read_only_submit")
+            return self._blocked_write()
         return Decision("allow", "click_ok")
+
+    def _blocked_write(self) -> Decision:
+        if self.policy.confirm_writes:
+            return confirm("write_needs_confirmation")
+        return deny("read_only_submit")
+
+    async def _confirm_write(self, action: str, ref: str, loc, facts: dict):
+        """Ask the operator about a form submit. Returns (write window, None) if approved, or
+        (None, refusal message). The window is the one exact request the operator approved."""
+        if self.confirmations >= self.policy.max_confirmations:
+            self.audit.log(
+                event="confirmation", ref=ref, verdict="deny", rule="confirmation_budget_exhausted"
+            )
+            return None, "DENIED (confirmation_budget_exhausted)"
+        self.confirmations += 1
+        form = facts["form"]
+        fields = ", ".join(f"{k}={v!r}" for k, v in await loc.evaluate(FIELDS_JS))
+        reason = self._redact(
+            f"{form['method'].upper()} {form['action']} (form submit by {action}); "
+            f"fields: {fields or 'none'}"
+        )
+        approval_id = await create_approval(self.audit.session_id or "unknown", reason, "runtime")
+        self.audit.log(
+            event="confirmation_requested", approval_id=approval_id, ref=ref, facts=facts
+        )
+        status = await await_decision(approval_id, self.policy.confirm_timeout_seconds)
+        if status != "approved":
+            self.audit.log(
+                event="confirmation", approval_id=approval_id, ref=ref, verdict="deny",
+                rule="confirmation_denied",
+            )  # fmt: skip
+            return None, "DENIED (confirmation_denied)"
+        # The page may have changed while the operator decided (or another agent acted): what is
+        # about to run must still be what was approved.
+        if await loc.count() != 1 or await loc.evaluate(FACTS_JS) != facts:
+            self.audit.log(
+                event="confirmation", approval_id=approval_id, ref=ref, verdict="deny",
+                rule="confirmed_action_changed",
+            )  # fmt: skip
+            return None, "DENIED (confirmed_action_changed)"
+        self.audit.log(
+            event="confirmation", approval_id=approval_id, ref=ref, verdict="allow",
+            rule="confirmation_approved",
+        )  # fmt: skip
+        return frozenset({(form["method"].upper(), urldefrag(form["action"])[0])}), None
 
     async def act(self, action: str, ref: str, text: str | None = None) -> str:
         self._step("act")
@@ -292,13 +358,7 @@ class Session:
         loc = self.page.locator(f'[data-omotai-ref="{ref}"]')
         if await loc.count() != 1:
             return "ERROR: unknown ref; call observe first"
-        facts = await loc.evaluate(
-            "el => ({tag: el.tagName.toLowerCase(), type: el.type || '',"
-            " href: el.tagName === 'A' ? el.href : null,"
-            " form: (el.form || el.closest('form')) ?"
-            " {method: (el.form || el.closest('form')).method,"
-            " action: (el.form || el.closest('form')).action} : null})"
-        )
+        facts = await loc.evaluate(FACTS_JS)
         d = self._decide_act(action, facts)
         self.audit.log(
             event="decision",
@@ -309,9 +369,16 @@ class Session:
             verdict=d.verdict,
             rule=d.rule,
         )
-        if not d.allowed:
+        window = None
+        if d.needs_confirm:
+            window, refusal = await self._confirm_write(action, ref, loc, facts)
+            if refusal:
+                return refusal
+        elif not d.allowed:
             return f"DENIED ({d.rule})"
         try:
+            if window:
+                self.write_ok = window  # only the approved request, only during this action
             if action == "click":
                 await loc.click(timeout=5_000)
             elif action == "press":
@@ -321,6 +388,9 @@ class Session:
             await self.page.wait_for_load_state("load", timeout=5_000)
         except Exception as e:  # noqa: BLE001
             return f"ERROR: {type(e).__name__}"
+        finally:
+            if window:
+                self.write_ok = frozenset()
         await asyncio.sleep(0.2)  # let in-page requests hit the guard before we report
         return await self.observe()
 

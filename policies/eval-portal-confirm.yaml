@@ -1,0 +1,17 @@
+# Same portal as eval-portal.yaml, but a form submit waits for a human instead of being denied.
+# Everything not listed is denied. Writes stay denied by default (read_only: true); the operator
+# approving one opens a write window for that exact request (method + form URL) and nothing else.
+allowed_origins:
+  - http://localhost:8001
+read_only: true
+confirm_writes: true          # needs read_only: true
+confirm_timeout_seconds: 30   # unanswered = denied
+max_confirmations: 3          # per session; more are denied without asking the operator again
+max_actions: 40
+max_seconds: 600
+login:
+  url: http://localhost:8001/login
+  user_field: user
+  password_field: password
+  user_env: OMOTAI_LOGIN_USER
+  password_env: OMOTAI_LOGIN_PASSWORD
