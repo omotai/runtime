@@ -79,6 +79,19 @@
                     <input type="text" id="agent-name-input" placeholder="Agent Name (e.g. AITG-APP-02)" class="input-field">
                     <button id="btn-create-agent" class="btn primary">Generate Key</button>
                 </div>
+                <div id="agent-key-banner" class="key-banner" style="display: none;">
+                    <div class="key-banner-content">
+                        <div class="key-banner-header">
+                            <strong>Agent Created Successfully!</strong>
+                            <p class="key-banner-warning">Guarde sua chave agora, ela não será exibida novamente.</p>
+                        </div>
+                        <div class="key-banner-body">
+                            <code id="new-agent-key" class="api-key-display"></code>
+                            <button id="btn-copy-key" class="btn primary small">Copy</button>
+                            <button id="btn-close-key-banner" class="btn danger small">Close</button>
+                        </div>
+                    </div>
+                </div>
                 <div class="table-container">
                     <table class="data-table">
                         <thead>

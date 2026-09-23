@@ -29,6 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnCreateAgent = document.getElementById('btn-create-agent');
     const inputAgentName = document.getElementById('agent-name-input');
     const agentsTableBody = document.getElementById('agents-table-body');
+    const agentKeyBanner = document.getElementById('agent-key-banner');
+    const newAgentKey = document.getElementById('new-agent-key');
+    const btnCopyKey = document.getElementById('btn-copy-key');
+    const btnCloseKeyBanner = document.getElementById('btn-close-key-banner');
 
     async function loadAgents() {
         try {
@@ -37,12 +41,29 @@ document.addEventListener('DOMContentLoaded', () => {
             agentsTableBody.innerHTML = '';
             agents.forEach(a => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${a.name}</td>
-                    <td class="api-key-text">${a.api_key}</td>
-                    <td>${new Date(a.created_at).toLocaleString()}</td>
-                    <td><button class="btn danger" onclick="deleteAgent(${a.id})">Delete</button></td>
-                `;
+                
+                const tdName = document.createElement('td');
+                tdName.textContent = a.name;
+
+                const tdKey = document.createElement('td');
+                tdKey.className = 'api-key-text';
+                tdKey.textContent = a.api_key;
+
+                const tdDate = document.createElement('td');
+                tdDate.textContent = new Date(a.created_at).toLocaleString();
+
+                const tdActions = document.createElement('td');
+                const btnDelete = document.createElement('button');
+                btnDelete.className = 'btn danger';
+                btnDelete.textContent = 'Delete';
+                btnDelete.onclick = () => deleteAgent(a.id);
+                tdActions.appendChild(btnDelete);
+
+                tr.appendChild(tdName);
+                tr.appendChild(tdKey);
+                tr.appendChild(tdDate);
+                tr.appendChild(tdActions);
+
                 agentsTableBody.appendChild(tr);
             });
         } catch (e) {
@@ -53,14 +74,42 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCreateAgent.addEventListener('click', async () => {
         const name = inputAgentName.value.trim();
         if(!name) return;
-        await fetch('/api/agents', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({name})
-        });
-        inputAgentName.value = '';
-        loadAgents();
+        try {
+            const res = await fetch('/api/agents', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name})
+            });
+            if (res.ok) {
+                const data = await res.json();
+                inputAgentName.value = '';
+                if (data.api_key) {
+                    newAgentKey.textContent = data.api_key;
+                    agentKeyBanner.style.display = 'block';
+                    btnCopyKey.textContent = 'Copy';
+                }
+                loadAgents();
+            }
+        } catch (e) {
+            console.error("Failed to create agent", e);
+        }
     });
+
+    if (btnCopyKey) {
+        btnCopyKey.addEventListener('click', () => {
+            if (newAgentKey.textContent) {
+                navigator.clipboard.writeText(newAgentKey.textContent);
+                btnCopyKey.textContent = 'Copied!';
+                setTimeout(() => { btnCopyKey.textContent = 'Copy'; }, 2000);
+            }
+        });
+    }
+
+    if (btnCloseKeyBanner) {
+        btnCloseKeyBanner.addEventListener('click', () => {
+            agentKeyBanner.style.display = 'none';
+        });
+    }
 
     window.deleteAgent = async (id) => {
         await fetch(`/api/agents/${id}`, { method: 'DELETE' });

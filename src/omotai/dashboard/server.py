@@ -46,6 +46,18 @@ class ApprovalUpdate(BaseModel):
     status: str
 
 
+def mask_api_key(key: str) -> str:
+    prefix = "sk-omotai-"
+    if key.startswith(prefix):
+        secret = key[len(prefix) :]
+        if len(secret) > 4:
+            return f"{prefix}{'*' * (len(secret) - 4)}{secret[-4:]}"
+        return f"{prefix}{'*' * len(secret)}"
+    if len(key) > 4:
+        return f"{'*' * (len(key) - 4)}{key[-4:]}"
+    return "*" * len(key)
+
+
 # API Routes
 @app.post("/api/agents")
 def create_agent(agent: AgentCreate):
@@ -68,7 +80,10 @@ def list_agents():
         cursor = conn.cursor()
         cursor.execute("SELECT id, name, api_key, created_at FROM agents ORDER BY id DESC")
         rows = cursor.fetchall()
-        return [{"id": r[0], "name": r[1], "api_key": r[2], "created_at": r[3]} for r in rows]
+        return [
+            {"id": r[0], "name": r[1], "api_key": mask_api_key(r[2]), "created_at": r[3]}
+            for r in rows
+        ]
 
 
 @app.delete("/api/agents/{agent_id}")
