@@ -3,7 +3,10 @@
 import hashlib
 import json
 import time
+from contextvars import ContextVar
 from pathlib import Path
+
+current_agent_name = ContextVar("current_agent_name", default=None)
 
 GENESIS = "0" * 64
 
@@ -15,10 +18,10 @@ def _digest(prev: str, record: dict) -> str:
 
 class Audit:
     def __init__(
-        self, path: str | Path, agent_key: str | None = None, session_id: str | None = None
+        self, path: str | Path, agent_name: str | None = None, session_id: str | None = None
     ):
         self.path = Path(path)
-        self.agent_key = agent_key
+        self.agent_name = agent_name
         self.session_id = session_id
         self.path.parent.mkdir(parents=True, exist_ok=True)
         lines = self.path.read_text(encoding="utf-8").splitlines() if self.path.exists() else []
@@ -51,7 +54,7 @@ class Audit:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        self.agent_key,
+                        current_agent_name.get() or self.agent_name,
                         self.session_id,
                         event.get("event"),
                         event.get("tool"),
