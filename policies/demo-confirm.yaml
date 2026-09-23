@@ -1,0 +1,17 @@
+# Demo policy for the Docker setup (docker-compose.demo.yml): the mock portal of omotai/eval runs on
+# the host (docker compose up in that repo), so from inside this container it is host.docker.internal.
+# Writes are denied by default; a form submit waits for the operator on the dashboard.
+allowed_origins:
+  - http://host.docker.internal:8001
+read_only: true
+confirm_writes: true
+confirm_timeout_seconds: 90   # time to click Approve/Deny
+max_confirmations: 5
+max_actions: 500              # limits are per process, not per agent connection (SSE mode)
+max_seconds: 7200
+login:                        # done by the runtime at startup, from the vault
+  url: http://host.docker.internal:8001/login
+  user_field: user
+  password_field: password
+  secret_id: portal-login
+  user: cliente

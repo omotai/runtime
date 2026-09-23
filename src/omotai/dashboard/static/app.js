@@ -198,6 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tr = document.createElement('tr');
                 
                 const tdReason = document.createElement('td');
+                tdReason.className = 'reason-cell';
                 tdReason.textContent = a.reason;
                 
                 const tdSource = document.createElement('td');
@@ -213,11 +214,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 tdStatus.innerHTML = `<span style="font-weight: bold; color: ${a.status === 'pending' ? 'orange' : (a.status === 'approved' ? 'green' : 'red')}">${a.status}</span>`;
 
                 const tdActions = document.createElement('td');
+                tdActions.className = 'actions-cell';
                 if (a.status === 'pending') {
-                    tdActions.innerHTML = `
-                        <button class="btn primary" onclick="resolveApproval(${a.id}, 'approved')" style="margin-right: 8px;">Approve</button>
-                        <button class="btn danger" onclick="resolveApproval(${a.id}, 'denied')">Deny</button>
-                    `;
+                    const box = document.createElement('div');
+                    box.className = 'actions';
+                    [['Approve', 'approved', 'primary'], ['Deny', 'denied', 'danger']].forEach(([label, status, style]) => {
+                        const btn = document.createElement('button');
+                        btn.className = `btn small ${style}`;
+                        btn.textContent = label;
+                        btn.onclick = () => resolveApproval(a.id, status);
+                        box.appendChild(btn);
+                    });
+                    tdActions.appendChild(box);
                 }
                 
                 tr.appendChild(tdReason);
