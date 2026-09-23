@@ -185,7 +185,7 @@ def list_approvals():
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, session_id, reason, status, created_at "
+            "SELECT id, session_id, reason, status, created_at, source "
             "FROM approvals ORDER BY id DESC LIMIT 50"
         )
         rows = cursor.fetchall()
@@ -196,6 +196,7 @@ def list_approvals():
                 "reason": r[2],
                 "status": r[3],
                 "created_at": r[4],
+                "source": r[5],
             }
             for r in rows
         ]
@@ -207,8 +208,13 @@ def update_approval(approval_id: int, update: ApprovalUpdate):
         raise HTTPException(status_code=400, detail="Invalid status")
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE approvals SET status = ? WHERE id = ?", (update.status, approval_id))
+        cursor.execute(
+            "UPDATE approvals SET status = ? WHERE id = ? AND status = 'pending'",
+            (update.status, approval_id),
+        )
         conn.commit()
+        if cursor.rowcount == 0:  # unknown id, or already resolved (answered or timed out)
+            raise HTTPException(status_code=409, detail="Approval is not pending")
         return {"status": "ok"}
 
 

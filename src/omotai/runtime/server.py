@@ -1,6 +1,5 @@
 """MCP server: the only tools the agent gets. Page content always comes back marked untrusted."""
 
-import asyncio
 import os
 import uuid
 from collections.abc import AsyncIterator
@@ -10,7 +9,7 @@ from typing import Literal
 import click
 from mcp.server.mcpserver import MCPServer
 
-from omotai.dashboard.db import get_connection
+from omotai.runtime.approvals import await_decision, create_approval
 from omotai.runtime.audit import Audit
 from omotai.runtime.policy import Policy
 from omotai.runtime.session import Denied, Session
@@ -89,41 +88,14 @@ def build_server(
     @mcp.tool()
     async def ask_human(reason: str) -> str:
         """Ask the human operator to approve or deny an action.
-        Returns 'approved' or 'denied' (auto-denies after 30s)."""
+        Returns 'approved' or 'denied' (denied if the operator does not answer in time)."""
 
         async def _ret():
             try:
-                with get_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        "INSERT INTO approvals (session_id, reason, status) VALUES (?, ?, ?)",
-                        (audit.session_id, reason, "pending"),
-                    )
-                    conn.commit()
-                    approval_id = cursor.lastrowid
+                approval_id = await create_approval(audit.session_id or "unknown", reason, "agent")
             except Exception as e:
                 raise Denied("ask_human failed to initialize DB connection") from e
-
-            async def _poll():
-                while True:
-                    with get_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT status FROM approvals WHERE id = ?", (approval_id,))
-                        row = cursor.fetchone()
-                        if row and row[0] != "pending":
-                            return row[0]
-                    await asyncio.sleep(1)
-
-            try:
-                return await asyncio.wait_for(_poll(), timeout=30.0)
-            except TimeoutError:
-                with get_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        "UPDATE approvals SET status = 'denied' WHERE id = ?", (approval_id,)
-                    )
-                    conn.commit()
-                return "denied"
+            return await await_decision(approval_id, session.policy.confirm_timeout_seconds)
 
         return await guarded("ask_human", {"reason": reason}, _ret())
 
@@ -168,6 +140,11 @@ def cli():
 )
 def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int, host: str) -> None:
     """Start the MCP server."""
+    # Every mode needs the tables (approvals, audit, domains, vault); only the dashboard used to
+    # create them, so a plain stdio run got an empty database and confirmations failed.
+    from omotai.dashboard.db import init_db
+
+    init_db()
     # Handle API Key
     agent_key = os.environ.get("OMOTAI_AGENT_KEY")
     agent_name = None
