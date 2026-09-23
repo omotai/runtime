@@ -62,13 +62,20 @@ class Session:
 
         try:
             from omotai.dashboard.db import get_connection
+            import json
 
             with get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT secret_value FROM secrets")
                 for row in cursor.fetchall():
-                    self._secrets.append(row[0])
-        except Exception:  # noqa: S110
+                    val = row[0]
+                    try:
+                        creds = json.loads(val)
+                        if "password" in creds:
+                            self._secrets.append(creds["password"])
+                    except Exception:
+                        self._secrets.append(val)
+        except Exception:  # noqa: BLE001
             pass
 
     async def start(self) -> None:
@@ -128,7 +135,24 @@ class Session:
         await ws.close()
 
     async def _login(self, cfg: dict) -> None:
-        user, password = os.environ[cfg["user_env"]], os.environ[cfg["password_env"]]
+        if "secret_id" in cfg:
+            from omotai.dashboard.db import get_connection
+            import json
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT secret_value FROM secrets WHERE key_name = ?", (cfg["secret_id"],))
+                row = cursor.fetchone()
+                if not row:
+                    raise Denied(f"login failed: secret {cfg['secret_id']} not found in vault")
+                try:
+                    creds = json.loads(row[0])
+                    user, password = creds["user"], creds["password"]
+                except Exception:
+                    # fallback to simple string format if not JSON
+                    user, password = cfg.get("user", ""), row[0]
+        else:
+            user, password = os.environ[cfg["user_env"]], os.environ[cfg["password_env"]]
+            
         self._secrets.append(password)
         url = cfg["url"]
         if not self.policy.check_navigate(url).allowed:

@@ -226,5 +226,75 @@ def list():
             click.secho(f"{row[0]:<5} | {row[1]:<40} | {row[2]:<10} | {row[3]}", fg=color)
 
 
+@cli.group()
+def secret():
+    """Manage secrets for the runtime in the vault."""
+    pass
+
+
+@secret.command()
+@click.argument("key_name")
+@click.argument("secret_value")
+def add(key_name: str, secret_value: str):
+    """Add a secret to the vault."""
+    from omotai.dashboard.db import get_connection, init_db
+    init_db()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO secrets (key_name, secret_value) VALUES (?, ?)", 
+                (key_name, secret_value)
+            )
+            conn.commit()
+            click.secho(f"Secret {key_name} added to vault.", fg="green")
+        except Exception as e:
+            if "UNIQUE constraint failed" in str(e):
+                cursor.execute(
+                    "UPDATE secrets SET secret_value = ? WHERE key_name = ?",
+                    (secret_value, key_name)
+                )
+                conn.commit()
+                click.secho(f"Secret {key_name} updated in vault.", fg="yellow")
+            else:
+                click.secho(f"Error: {e}", fg="red", err=True)
+
+
+@secret.command()
+@click.argument("key_name")
+def rm(key_name: str):
+    """Remove a secret from the vault."""
+    from omotai.dashboard.db import get_connection, init_db
+    init_db()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM secrets WHERE key_name = ?", (key_name,))
+        if cursor.rowcount > 0:
+            click.secho(f"Secret {key_name} removed.", fg="green")
+            conn.commit()
+        else:
+            click.secho(f"Secret {key_name} not found.", fg="yellow")
+
+
+@secret.command()
+def list():
+    """List all secrets in the vault."""
+    from omotai.dashboard.db import get_connection, init_db
+    init_db()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, key_name, created_at FROM secrets ORDER BY created_at DESC")
+        rows = cursor.fetchall()
+        
+        if not rows:
+            click.secho("No secrets found.", fg="yellow")
+            return
+            
+        click.secho(f"{'ID':<5} | {'KEY_NAME':<40} | {'CREATED AT'}", bold=True)
+        click.secho("-" * 80)
+        for row in rows:
+            click.secho(f"{row[0]:<5} | {row[1]:<40} | {row[2]}")
+
+
 if __name__ == "__main__":
     cli()
