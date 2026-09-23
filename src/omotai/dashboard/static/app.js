@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (targetId === 'agents-view') loadAgents();
             if (targetId === 'secrets-view') loadSecrets();
             if (targetId === 'approvals-view') loadApprovals();
+            if (targetId === 'domains-view') loadDomains();
         });
     });
 
@@ -184,6 +185,71 @@ document.addEventListener('DOMContentLoaded', () => {
         await fetch(`/api/secrets/${id}`, { method: 'DELETE' });
         loadSecrets();
     };
+
+    // Domains API
+    const domainsTableBody = document.getElementById('domains-table-body');
+    const domainOriginInput = document.getElementById('domain-origin-input');
+    const domainActionSelect = document.getElementById('domain-action-select');
+    const domainError = document.getElementById('domain-error');
+
+    function domainRow(cells, actionCell) {
+        const tr = document.createElement('tr');
+        cells.forEach(text => {
+            const td = document.createElement('td');
+            td.textContent = text;
+            tr.appendChild(td);
+        });
+        tr.appendChild(actionCell);
+        domainsTableBody.appendChild(tr);
+        return tr;
+    }
+
+    async function loadDomains() {
+        try {
+            const res = await fetch('/api/domains');
+            const data = await res.json();
+            domainsTableBody.innerHTML = '';
+            // origins from the policy file: read only (shown when the runtime runs in this process)
+            data.policy_origins.forEach(origin => {
+                const tr = domainRow([origin, 'allow', 'policy file', ''], document.createElement('td'));
+                tr.children[1].className = 'status-allow';
+            });
+            data.domains.forEach(d => {
+                const tdDelete = document.createElement('td');
+                const btn = document.createElement('button');
+                btn.className = 'btn small danger';
+                btn.textContent = 'Delete';
+                btn.onclick = () => deleteDomain(d.id);
+                tdDelete.appendChild(btn);
+                const tr = domainRow([d.origin, d.action, 'dashboard', new Date(d.created_at).toLocaleString()], tdDelete);
+                tr.children[1].className = d.action === 'deny' ? 'status-deny' : 'status-allow';
+            });
+        } catch (e) {
+            console.error("Failed to load domains", e);
+        }
+    }
+
+    document.getElementById('btn-add-domain').addEventListener('click', async () => {
+        const origin = domainOriginInput.value.trim();
+        if (!origin) return;
+        domainError.textContent = '';
+        const res = await fetch('/api/domains', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({origin, action: domainActionSelect.value})
+        });
+        if (res.ok) {
+            domainOriginInput.value = '';
+        } else if (res.status === 400) {
+            domainError.textContent = 'Enter an http(s) origin such as https://portal.example.com';
+        }
+        loadDomains();
+    });
+
+    async function deleteDomain(id) {
+        await fetch(`/api/domains/${id}`, { method: 'DELETE' });
+        loadDomains();
+    }
 
     // Approvals API
     const approvalsTableBody = document.getElementById('approvals-table-body');

@@ -195,6 +195,16 @@ def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int,
         mcp.run("stdio")
 
 
+def _cli_origin(raw: str) -> str:
+    from omotai.runtime.policy import normalize_origin
+
+    try:
+        return normalize_origin(raw)
+    except ValueError:
+        click.secho(f"Error: {raw!r} is not a valid http(s) origin.", fg="red", err=True)
+        raise SystemExit(1) from None
+
+
 @cli.group()
 def domain():
     """Manage dynamic domains for the runtime."""
@@ -206,7 +216,7 @@ def domain():
 @click.option("--allow", is_flag=True, help="Allow this origin")
 @click.option("--deny", is_flag=True, help="Deny this origin")
 def add_domain(origin: str, allow: bool, deny: bool):
-    """Add a domain to the database. Deny wins over allow. Takes effect on the next start."""
+    """Add a domain to the database. Deny wins over allow. Applies to the agent's next action."""
     if allow and deny:
         click.secho("Error: Cannot specify both --allow and --deny.", fg="red", err=True)
         raise SystemExit(1)
@@ -215,6 +225,7 @@ def add_domain(origin: str, allow: bool, deny: bool):
         raise SystemExit(1)
 
     action = "allow" if allow else "deny"
+    origin = _cli_origin(origin)
 
     from omotai.dashboard.db import get_connection, init_db
 
@@ -239,13 +250,14 @@ def add_domain(origin: str, allow: bool, deny: bool):
 @domain.command(name="rm")
 @click.argument("origin")
 def rm_domain(origin: str):
-    """Remove a domain from the database. Takes effect on the next start."""
+    """Remove a domain from the database. Applies to the agent's next action."""
     from omotai.dashboard.db import get_connection, init_db
 
+    raw, origin = origin, _cli_origin(origin)
     init_db()
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM domains WHERE origin = ?", (origin,))
+        cursor.execute("DELETE FROM domains WHERE origin IN (?, ?)", (origin, raw))
         if cursor.rowcount > 0:
             click.secho(f"Domain {origin} removed.", fg="green")
             conn.commit()

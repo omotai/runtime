@@ -135,3 +135,14 @@ def browser_available():
         asyncio.run(probe())
     except Exception as e:  # noqa: BLE001
         pytest.skip(f"no Chromium available for Playwright: {type(e).__name__}")
+
+
+@pytest.fixture(autouse=True)
+def isolated_database(tmp_path, monkeypatch):
+    """No test reads or writes the developer's runs/omotai.db (domains, secrets, approvals).
+    OMOTAI_DB also reaches the runtime subprocesses the tests start."""
+    from omotai.dashboard import db
+
+    path = tmp_path / "omotai.db"
+    monkeypatch.setattr(db, "DB_PATH", path)
+    monkeypatch.setenv("OMOTAI_DB", str(path))

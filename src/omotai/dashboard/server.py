@@ -6,6 +6,7 @@ import threading
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 import click
 import uvicorn
@@ -18,6 +19,7 @@ from starlette.responses import PlainTextResponse
 
 from omotai.dashboard.db import get_connection, init_db
 from omotai.runtime.audit import current_agent_name
+from omotai.runtime.policy import normalize_origin
 
 
 @asynccontextmanager
@@ -85,6 +87,18 @@ class Login(BaseModel):
     token: str
 
 
+class DomainCreate(BaseModel):
+    origin: str
+    action: Literal["allow", "deny"]
+
+
+def valid_origin(raw: str) -> str:
+    try:
+        return normalize_origin(raw)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Not a valid http(s) origin") from e
+
+
 def mask_api_key(key: str) -> str:
     prefix = "sk-omotai-"
     if key.startswith(prefix):
@@ -145,6 +159,48 @@ def delete_agent(agent_id: int):
         cursor.execute("DELETE FROM agents WHERE id = ?", (agent_id,))
         conn.commit()
         return {"status": "ok"}
+
+
+@app.get("/api/domains")
+def list_domains():
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, origin, action, created_at FROM domains ORDER BY id DESC"
+        ).fetchall()
+    # the YAML origins are only known where the runtime runs in this process (SSE mode)
+    session = getattr(app.state, "session", None)
+    policy_origins = []
+    if session is not None:
+        base = session.policy.base_origins
+        policy_origins = sorted(base if base is not None else session.policy.allowed_origins)
+    return {
+        "domains": [{"id": r[0], "origin": r[1], "action": r[2], "created_at": r[3]} for r in rows],
+        "policy_origins": policy_origins,
+    }
+
+
+@app.post("/api/domains")
+def add_domain(domain: DomainCreate):
+    origin = valid_origin(domain.origin)
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO domains (origin, action) VALUES (?, ?) "
+            "ON CONFLICT(origin) DO UPDATE SET action = excluded.action",
+            (origin, domain.action),
+        )
+        conn.commit()
+        row = conn.execute("SELECT id FROM domains WHERE origin = ?", (origin,)).fetchone()
+    return {"id": row[0], "origin": origin, "action": domain.action}
+
+
+@app.delete("/api/domains/{domain_id}")
+def delete_domain(domain_id: int):
+    with get_connection() as conn:
+        cursor = conn.execute("DELETE FROM domains WHERE id = ?", (domain_id,))
+        conn.commit()
+    if cursor.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    return {"status": "ok"}
 
 
 @app.post("/api/secrets")

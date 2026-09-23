@@ -12,6 +12,7 @@ Layers, all deterministic:
 import asyncio
 import hashlib
 import os
+import sqlite3
 import time
 from urllib.parse import urldefrag
 
@@ -20,7 +21,7 @@ from playwright.async_api import async_playwright
 from omotai.runtime.approvals import await_decision, create_approval
 from omotai.runtime.audit import Audit
 from omotai.runtime.netguard import Proxy
-from omotai.runtime.policy import Decision, Policy, confirm, deny
+from omotai.runtime.policy import Decision, Policy, confirm, deny, load_domain_rows
 
 ENUM_JS = """
 () => {
@@ -207,7 +208,25 @@ class Session:
             raise Denied("max_actions")
         if time.time() - self.started > self.policy.max_seconds:
             raise Denied("max_seconds")
+        self._reload_domains()
         self.audit.log(event="tool", tool=tool, n=self.actions)
+
+    def _reload_domains(self) -> None:
+        """Apply the domains table as it is now, so dashboard/CLI changes take effect on the
+        agent's next action without a restart. Unreadable = denied, never stale rules.
+        ponytail: one small SELECT per tool call; add a version check if it ever shows up."""
+        try:
+            new = self.policy.with_domains(load_domain_rows())
+        except sqlite3.Error as e:
+            self.audit.log(event="domains_reload", verdict="deny", rule="domains_unreadable")
+            raise Denied("domains_unreadable") from e
+        if new.allowed_origins != self.policy.allowed_origins:
+            self.audit.log(
+                event="domains_reloaded",
+                added=sorted(new.allowed_origins - self.policy.allowed_origins),
+                removed=sorted(self.policy.allowed_origins - new.allowed_origins),
+            )
+            self.policy = new
 
     async def observe(self) -> str:
         els = await self.page.evaluate(ENUM_JS)
