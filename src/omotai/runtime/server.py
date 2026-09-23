@@ -120,9 +120,7 @@ def cli():
 
 @cli.command()
 @click.option("--policy", required=True, help="Path to the task policy YAML")
-@click.option(
-    "--audit", default=None, help="Path to the audit log (default: runs/audit-<timestamp>.jsonl)"
-)
+@click.option("--audit", default=None, help="Path to the audit log (default: runs/audit.jsonl)")
 @click.option(
     "--mode",
     type=click.Choice(["stdio", "sse"]),
