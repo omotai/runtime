@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from omotai.runtime.policy import Policy, denied_path
@@ -254,3 +256,16 @@ def test_policy_yaml_accepts_the_confirm_fields(tmp_path):
     )
     p = Policy.load(f)
     assert (p.confirm_writes, p.confirm_timeout_seconds, p.max_confirmations) == (True, 5, 2)
+
+
+def test_with_domains_starts_from_the_base_every_time():
+    base = frozenset({"http://a.test", "http://b.test"})
+    p = Policy(allowed_origins=base)
+    once = p.with_domains([("http://c.test", "allow"), ("HTTP://B.test:80/", "deny")])
+    assert once.allowed_origins == {"http://a.test", "http://c.test"} and once.base_origins == base
+    # a removed row stops applying: the next application does not build on the previous one
+    assert once.with_domains([]).allowed_origins == base
+    assert once.with_domains([("http://c.test", "allow")]).allowed_origins == base | {
+        "http://c.test"
+    }
+    assert p.with_domains([]) == replace(p, base_origins=base)  # no rows: same rules

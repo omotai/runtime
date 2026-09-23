@@ -36,6 +36,10 @@
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                     Human Approvals
                 </a>
+                <a href="#" class="nav-item" data-target="domains-view">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                    Domains (Whitelist)
+                </a>
                 <a href="#" class="nav-item" data-target="secrets-view">
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                     Secrets Vault
@@ -137,6 +141,39 @@
                             </tr>
                         </thead>
                         <tbody id="approvals-table-body">
+                            <!-- Rows injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Domains View -->
+            <section id="domains-view" class="view-section">
+                <header class="view-header">
+                    <h2>Domains (Whitelist)</h2>
+                    <p>Origins the agent may reach. A deny always wins over an allow. Changes apply on the agent's next action, no restart needed.</p>
+                </header>
+                <div class="action-bar">
+                    <input type="text" id="domain-origin-input" placeholder="Origin (e.g. https://portal.example.com)" class="input-field">
+                    <select id="domain-action-select" class="input-field select-field">
+                        <option value="allow">Allow</option>
+                        <option value="deny">Deny</option>
+                    </select>
+                    <button id="btn-add-domain" class="btn primary">Add</button>
+                </div>
+                <p id="domain-error" class="form-error"></p>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Origin</th>
+                                <th>Action</th>
+                                <th>Source</th>
+                                <th>Added</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="domains-table-body">
                             <!-- Rows injected via JS -->
                         </tbody>
                     </table>
