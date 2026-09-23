@@ -14,8 +14,12 @@ def _digest(prev: str, record: dict) -> str:
 
 
 class Audit:
-    def __init__(self, path: str | Path):
+    def __init__(
+        self, path: str | Path, agent_key: str | None = None, session_id: str | None = None
+    ):
         self.path = Path(path)
+        self.agent_key = agent_key
+        self.session_id = session_id
         self.path.parent.mkdir(parents=True, exist_ok=True)
         lines = self.path.read_text(encoding="utf-8").splitlines() if self.path.exists() else []
         self.prev = json.loads(lines[-1])["hash"] if lines else GENESIS
@@ -32,6 +36,35 @@ class Audit:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
         self.prev = record["hash"]
+
+        # Save to SQLite
+        try:
+            from omotai.dashboard.db import get_connection
+
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO audit_logs 
+                    (agent_key, session_id, event, tool, url, verdict, rule, request_payload, 
+                    response_payload)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        self.agent_key,
+                        self.session_id,
+                        event.get("event"),
+                        event.get("tool"),
+                        event.get("url"),
+                        event.get("verdict"),
+                        event.get("rule"),
+                        json.dumps(event.get("request")) if "request" in event else None,
+                        event.get("response"),
+                    ),
+                )
+                conn.commit()
+        except Exception:  # noqa: S110
+            pass
 
     def _rotate(self):
         for i in range(4, 0, -1):
