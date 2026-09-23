@@ -2,8 +2,8 @@
 
 import asyncio
 
-from omotai_runtime.netguard import Proxy
-from omotai_runtime.policy import Policy
+from omotai.runtime.netguard import Proxy
+from omotai.runtime.policy import Policy
 
 
 def raw_request(proxy_port, target, method="GET"):

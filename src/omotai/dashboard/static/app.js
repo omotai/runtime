@@ -109,4 +109,28 @@ document.addEventListener('DOMContentLoaded', () => {
         await fetch(`/api/secrets/${id}`, { method: 'DELETE' });
         loadSecrets();
     };
+
+    // Logs SSE Setup
+    const logsOutput = document.getElementById('logs-output');
+    if (logsOutput) {
+        logsOutput.innerHTML = '';
+        const eventSource = new EventSource('/api/logs/stream');
+        eventSource.onmessage = function(event) {
+            const data = event.data;
+            if(!data) return;
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.style.fontFamily = 'monospace';
+            logEntry.style.padding = '4px 0';
+            logEntry.style.borderBottom = '1px solid #333';
+            try {
+                const parsed = JSON.parse(data);
+                logEntry.textContent = `[${parsed.timestamp || new Date().toISOString()}] ${parsed.type || 'EVENT'}: ${JSON.stringify(parsed.event || parsed)}`;
+            } catch(e) {
+                logEntry.textContent = data;
+            }
+            logsOutput.appendChild(logEntry);
+            logsOutput.scrollTop = logsOutput.scrollHeight;
+        };
+    }
 });

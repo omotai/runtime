@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  omotai-ui:
+    build:
+      context: .
+      dockerfile: src/omotai/dashboard/Dockerfile
+    container_name: omotai-ui
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./runs:/app/runs
+    command: ["omotai", "start", "--dashboard", "--port", "8080", "--policy", "/app/policy.yaml"]
+    stdin_open: true
+    tty: true
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OMOTAI_AGENT_KEY=dashboard-default-key
+
+  omotai-runtime:
+    build:
+      context: .
+      dockerfile: src/omotai/runtime/Dockerfile
+    container_name: omotai-runtime
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./runs:/app/runs
+    command: ["omotai", "start", "--mode", "sse", "--port", "8000", "--policy", "/app/policy.yaml"]
+    stdin_open: true
+    tty: true
+    environment:
+      - PYTHONUNBUFFERED=1
+      - OMOTAI_AGENT_KEY=dashboard-default-key

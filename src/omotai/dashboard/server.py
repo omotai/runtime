@@ -1,3 +1,4 @@
+import asyncio
 import os
 import threading
 import uuid
@@ -7,8 +8,9 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from sse_starlette.sse import EventSourceResponse
 
-from omotai_runtime.dashboard.db import get_connection, init_db
+from omotai.dashboard.db import get_connection, init_db
 
 app = FastAPI(title="Omotai Runtime Dashboard")
 
@@ -93,6 +95,25 @@ def delete_secret(secret_id: int):
         return {"status": "ok"}
 
 
+@app.get("/api/logs/stream")
+async def stream_logs():
+    async def log_generator():
+        log_path = Path("runs/audit.jsonl")
+        if not log_path.exists():
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.touch()
+
+        with open(log_path, encoding="utf-8") as f:
+            while True:
+                line = f.readline()
+                if not line:
+                    await asyncio.sleep(0.2)
+                    continue
+                yield {"data": line.strip()}
+
+    return EventSourceResponse(log_generator())
+
+
 # Static files (Frontend)
 static_dir = Path(__file__).parent / "static"
 os.makedirs(static_dir, exist_ok=True)
@@ -106,7 +127,7 @@ app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 
 
 def start_dashboard(port: int = 8080):
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="error")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")  # noqa: S104
 
 
 def run_in_background(port: int = 8080):

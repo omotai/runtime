@@ -8,9 +8,9 @@ from typing import Literal
 import click
 from mcp.server.mcpserver import MCPServer
 
-from omotai_runtime.audit import Audit
-from omotai_runtime.policy import Policy
-from omotai_runtime.session import Denied, Session
+from omotai.runtime.audit import Audit
+from omotai.runtime.policy import Policy
+from omotai.runtime.session import Denied, Session
 
 
 def build_server(policy: Policy, audit: Audit) -> tuple[MCPServer, Session]:
@@ -113,17 +113,15 @@ def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int)
 
     mcp, _ = build_server(Policy.load(policy), audit_logger)
 
-    if mode == "stdio":
-        if dashboard:
-            click.secho(
-                "WARNING: Dashboard is not fully supported in stdio mode yet.",
-                fg="yellow",
-                err=True,
-            )
+    if dashboard:
+        from omotai.dashboard.server import start_dashboard
+
+        start_dashboard(port)
+    elif mode == "stdio":
         mcp.run("stdio")
-    else:
-        click.secho("SSE mode is not fully implemented yet.", fg="red", err=True)
-        raise click.Abort()
+    elif mode == "sse":
+        click.secho(f"Starting SSE mode on 0.0.0.0:{port}...", fg="green")
+        mcp.run("sse", host="0.0.0.0", port=port)  # noqa: S104
 
 
 if __name__ == "__main__":
