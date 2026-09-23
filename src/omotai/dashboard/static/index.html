@@ -23,6 +23,10 @@
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                     Agents (API Keys)
                 </a>
+                <a href="#" class="nav-item" data-target="approvals-view">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    Human Approvals
+                </a>
                 <a href="#" class="nav-item" data-target="secrets-view">
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                     Secrets Vault
@@ -86,6 +90,30 @@
                             </tr>
                         </thead>
                         <tbody id="agents-table-body">
+                            <!-- Rows injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Human Approvals View -->
+            <section id="approvals-view" class="view-section">
+                <header class="view-header">
+                    <h2>Human Approvals</h2>
+                    <p>Review and resolve pending confirmations requested by the agents.</p>
+                </header>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Reason / Question</th>
+                                <th>Session ID</th>
+                                <th>Created At</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="approvals-table-body">
                             <!-- Rows injected via JS -->
                         </tbody>
                     </table>
