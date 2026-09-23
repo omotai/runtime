@@ -1,5 +1,7 @@
 """Deterministic policy. Decisions come from facts (scheme, origin, method), never page text."""
 
+import sqlite3
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urldefrag, urlsplit
@@ -92,21 +94,23 @@ class Policy:
         raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
         origins = set(origin_of(o) for o in raw.get("allowed_origins", []))
 
-        # Load from SQLite database
-        try:
-            from omotai.dashboard.db import get_connection
+        # Dynamic domains: `allow` adds to the YAML origins, `deny` removes (deny wins over any
+        # allow). No DB yet or no table = no dynamic domains; any other DB error fails the load
+        # instead of silently dropping a deny.
+        from omotai.dashboard import db
 
-            with get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT origin FROM domains WHERE action = 'allow'")
-                db_origins = [row[0] for row in cursor.fetchall()]
-                for o in db_origins:
-                    origins.add(origin_of(o))
-        except Exception:  # noqa: S110
-            # DB might not be initialized yet or table missing, fallback to yaml only
-            pass
+        rows = []
+        if db.DB_PATH.exists():
+            try:
+                with closing(db.get_connection()) as conn:
+                    rows = conn.execute("SELECT origin, action FROM domains").fetchall()
+            except sqlite3.OperationalError as e:
+                if "no such table" not in str(e):
+                    raise
+        allowed = {origin_of(o) for o, a in rows if a == "allow"}
+        denied = {origin_of(o) for o, a in rows if a == "deny"}
 
-        raw["allowed_origins"] = frozenset(origins)
+        raw["allowed_origins"] = frozenset((origins | allowed) - denied)
 
         entries = []
         for entry in raw.pop("denied_paths", None) or []:

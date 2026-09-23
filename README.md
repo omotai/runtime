@@ -33,7 +33,7 @@ A deterministic runtime between the LLM and the browser can drastically reduce h
 | Network guard | Two layers, both default-deny by origin. `page.route()` judges every request (any method, any resource type, WebSockets). A **forced proxy** judges every hop, including redirects, which the browser follows without asking the route again. Writes only in the runtime's own login window |
 | Policy | YAML: allowed origins, `read_only` (default), action and time limits. Decisions use only scheme, origin, method, field type, form destination |
 | Login | Done by the runtime from environment variables; the agent never sees or types a credential, and `type` into password fields is denied |
-| Audit log | Append-only JSONL with a SHA-256 hash chain; `omotai_runtime.audit.verify` detects edits and deleted records |
+| Audit log | Append-only JSONL with a SHA-256 hash chain; `omotai.runtime.audit.verify` detects edits and deleted records |
 
 Known limits of the guard: HTTPS through the proxy is judged by host and port only (methods on HTTPS are covered by `page.route()`); DNS and non-HTTP traffic are not controlled. For production, add a network-level firewall around the browser container.
 
@@ -42,8 +42,10 @@ Not in v0.1: human confirmation channel (everything is allow or deny), `fill_sec
 ```bash
 # policy for the eval mock portal; credentials come from the environment
 export OMOTAI_LOGIN_USER=... OMOTAI_LOGIN_PASSWORD=...
-uv run python -m omotai_runtime --policy policies/eval-portal.yaml --audit runs/audit.jsonl
+uv run python -m omotai.runtime start --policy policies/eval-portal.yaml --audit runs/audit.jsonl
 ```
+
+The local SQLite database (agents, secrets, dynamic domains, approvals, audit table) lives at `runs/omotai.db`, relative to the working directory. Set `OMOTAI_DB=/path/to/file.db` to use another file, e.g. one database per evaluation run.
 
 **Dashboard security.** `omotai start --dashboard` / `--mode sse` binds to `127.0.0.1` by default; pass `--host 0.0.0.0` to serve the network (Docker does). Every `/api/*` route needs the admin token: set `OMOTAI_ADMIN_TOKEN` (16+ characters) or read the one printed on startup, then sign in on the dashboard (cookie) or send `Authorization: Bearer <token>`. `/mcp` is separate and uses agent API keys. Docker Compose requires `OMOTAI_ADMIN_TOKEN` in `.env`.
 
