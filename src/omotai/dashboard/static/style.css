@@ -234,7 +234,7 @@ body {
     background: var(--bg-panel);
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    overflow: hidden;
+    overflow-x: auto;
 }
 
 .data-table {
@@ -314,3 +314,8 @@ body {
 }
 .login-box p { color: var(--text-secondary); font-size: 0.9rem; }
 .login-error { color: var(--danger) !important; min-height: 1.2em; }
+
+/* Row actions: side by side, never wrapped, column no wider than its buttons */
+.data-table td.actions-cell { width: 1%; white-space: nowrap; }
+.actions { display: flex; gap: 8px; align-items: center; }
+.data-table td.reason-cell { overflow-wrap: anywhere; min-width: 240px; }
