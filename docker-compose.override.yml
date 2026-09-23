@@ -1,0 +1,26 @@
+# Dev override: `docker compose` applies this file automatically on top of docker-compose.yml.
+# Delete it (or run with `-f docker-compose.yml`) to use the plain compose file.
+# - omotai-runtime uses policies/demo-confirm.yaml: writes wait for the operator on the dashboard.
+#   That policy targets the mock portal of omotai/eval running on the host, seen from the
+#   container as host.docker.internal:8001.
+# - The SQLite database lives in a named volume (OMOTAI_DB): WAL mode does not open on the
+#   Windows/Docker Desktop bind mount of ./runs. The audit JSONL stays in ./runs.
+# Needs OMOTAI_ADMIN_TOKEN (16+ characters) in .env, like the base file.
+services:
+  omotai-runtime:
+    command: ["omotai", "start", "--mode", "sse", "--host", "0.0.0.0", "--port", "8000", "--policy", "/app/demo-confirm.yaml"]
+    volumes:
+      - ./policies/demo-confirm.yaml:/app/demo-confirm.yaml:ro
+      - omotai-data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - OMOTAI_DB=/data/omotai.db
+  omotai-ui:
+    volumes:
+      - omotai-data:/data
+    environment:
+      - OMOTAI_DB=/data/omotai.db
+
+volumes:
+  omotai-data:
