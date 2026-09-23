@@ -61,8 +61,9 @@ class Session:
         self._secrets: list[str] = []
 
         try:
-            from omotai.dashboard.db import get_connection
             import json
+
+            from omotai.dashboard.db import get_connection
 
             with get_connection() as conn:
                 cursor = conn.cursor()
@@ -73,9 +74,9 @@ class Session:
                         creds = json.loads(val)
                         if "password" in creds:
                             self._secrets.append(creds["password"])
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         self._secrets.append(val)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
 
     async def start(self) -> None:
@@ -136,11 +137,15 @@ class Session:
 
     async def _login(self, cfg: dict) -> None:
         if "secret_id" in cfg:
-            from omotai.dashboard.db import get_connection
             import json
+
+            from omotai.dashboard.db import get_connection
             with get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT secret_value FROM secrets WHERE key_name = ?", (cfg["secret_id"],))
+                cursor.execute(
+                    "SELECT secret_value FROM secrets WHERE key_name = ?",
+                    (cfg["secret_id"],)
+                )
                 row = cursor.fetchone()
                 if not row:
                     raise Denied(f"login failed: secret {cfg['secret_id']} not found in vault")

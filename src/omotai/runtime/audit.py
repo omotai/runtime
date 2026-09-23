@@ -14,7 +14,12 @@ def _digest(prev: str, record: dict) -> str:
 
 
 class Audit:
-    def __init__(self, path: str | Path, agent_key: str | None = None, session_id: str | None = None):
+    def __init__(
+        self, 
+        path: str | Path, 
+        agent_key: str | None = None, 
+        session_id: str | None = None
+    ):
         self.path = Path(path)
         self.agent_key = agent_key
         self.session_id = session_id
@@ -43,7 +48,8 @@ class Audit:
                 cursor.execute(
                     """
                     INSERT INTO audit_logs 
-                    (agent_key, session_id, event, tool, url, verdict, rule, request_payload, response_payload)
+                    (agent_key, session_id, event, tool, url, verdict, rule, request_payload, 
+                    response_payload)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -59,7 +65,7 @@ class Audit:
                     )
                 )
                 conn.commit()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     def _rotate(self):

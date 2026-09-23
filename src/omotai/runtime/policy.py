@@ -101,7 +101,7 @@ class Policy:
                 db_origins = [row[0] for row in cursor.fetchall()]
                 for o in db_origins:
                     origins.add(origin_of(o))
-        except Exception as e:
+        except Exception:  # noqa: S110
             # DB might not be initialized yet or table missing, fallback to yaml only
             pass
             

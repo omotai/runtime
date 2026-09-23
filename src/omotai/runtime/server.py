@@ -1,10 +1,10 @@
 """MCP server: the only tools the agent gets. Page content always comes back marked untrusted."""
 
 import os
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Literal
-import uuid
 
 import click
 from mcp.server.mcpserver import MCPServer
@@ -78,7 +78,11 @@ def build_server(policy: Policy, audit: Audit) -> tuple[MCPServer, Session]:
     ) -> str:
         """Click an element, type text into a field, or press Enter in a text field (press), by
         ref from the latest observation."""
-        return await guarded("act", {"action": action, "ref": ref, "text": text}, session.act(action, ref, text))
+        return await guarded(
+            "act", 
+            {"action": action, "ref": ref, "text": text}, 
+            session.act(action, ref, text)
+        )
 
     @mcp.tool()
     async def finish(answer: str) -> str:
@@ -150,11 +154,11 @@ def domain():
     pass
 
 
-@domain.command()
+@domain.command(name="add")
 @click.argument("origin")
 @click.option("--allow", is_flag=True, help="Allow this origin")
 @click.option("--deny", is_flag=True, help="Deny this origin")
-def add(origin: str, allow: bool, deny: bool):
+def add_domain(origin: str, allow: bool, deny: bool):
     """Add a domain to the database."""
     if allow and deny:
         click.secho("Error: Cannot specify both --allow and --deny.", fg="red", err=True)
@@ -189,9 +193,9 @@ def add(origin: str, allow: bool, deny: bool):
                 click.secho(f"Error: {e}", fg="red", err=True)
 
 
-@domain.command()
+@domain.command(name="rm")
 @click.argument("origin")
-def rm(origin: str):
+def rm_domain(origin: str):
     """Remove a domain from the database."""
     from omotai.dashboard.db import get_connection, init_db
     init_db()
@@ -205,14 +209,16 @@ def rm(origin: str):
             click.secho(f"Domain {origin} not found.", fg="yellow")
 
 
-@domain.command()
-def list():
+@domain.command(name="list")
+def list_domains():
     """List all dynamic domains in the database."""
     from omotai.dashboard.db import get_connection, init_db
     init_db()
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, origin, action, created_at FROM domains ORDER BY created_at DESC")
+        cursor.execute(
+            "SELECT id, origin, action, created_at FROM domains ORDER BY created_at DESC"
+        )
         rows = cursor.fetchall()
         
         if not rows:
@@ -232,10 +238,10 @@ def secret():
     pass
 
 
-@secret.command()
+@secret.command(name="add")
 @click.argument("key_name")
 @click.argument("secret_value")
-def add(key_name: str, secret_value: str):
+def add_secret(key_name: str, secret_value: str):
     """Add a secret to the vault."""
     from omotai.dashboard.db import get_connection, init_db
     init_db()
@@ -260,9 +266,9 @@ def add(key_name: str, secret_value: str):
                 click.secho(f"Error: {e}", fg="red", err=True)
 
 
-@secret.command()
+@secret.command(name="rm")
 @click.argument("key_name")
-def rm(key_name: str):
+def rm_secret(key_name: str):
     """Remove a secret from the vault."""
     from omotai.dashboard.db import get_connection, init_db
     init_db()
@@ -276,8 +282,8 @@ def rm(key_name: str):
             click.secho(f"Secret {key_name} not found.", fg="yellow")
 
 
-@secret.command()
-def list():
+@secret.command(name="list")
+def list_secrets():
     """List all secrets in the vault."""
     from omotai.dashboard.db import get_connection, init_db
     init_db()
