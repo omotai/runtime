@@ -4,7 +4,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-> **Status: pre-alpha (v0.1 in progress).** Not ready for use. Nothing here is a security guarantee yet.
+> **Status: pre-alpha.** Not ready for production use. Nothing here is a security guarantee yet.
 
 An MCP server that sits between an AI agent and the browser. **The model proposes, the runtime decides.**
 
@@ -12,48 +12,64 @@ An MCP server that sits between an AI agent and the browser. **The model propose
 
 A deterministic runtime between the LLM and the browser can drastically reduce harmful actions under prompt injection and keep credentials entirely out of the model's context, without destroying the success rate on normal tasks. This repository exists to test that hypothesis, measured with [omotai/eval](https://github.com/omotai/eval).
 
-## Planned components
+## Components
 
-| Component | Responsibility |
+| Component | State |
 | --- | --- |
-| Tool server (MCP) | Exposes `navigate`, `observe`, `act`, `extract`, `fill_secret`, `finish`; page content is always marked untrusted |
-| Policy engine | Decides `allow`, `deny` or `confirm` per action, from YAML rules |
-| Secret vault | Secrets bound to origins, filled directly into the page, never shown to the model |
-| Network guard | Blocks writes to non-allowlisted origins and any secret leaving to an unbound origin |
-| Human confirmation | Approval through a channel the model cannot reach |
-| Audit log | Append-only, hash-chained record of what the agent saw, asked and was allowed to do |
+| Tool server (MCP, stdio and SSE) | **Implemented**: `navigate`, `observe`, `back`, `act` (click / type / press Enter), `ask_human`, `finish`. Page content always comes back marked `[UNTRUSTED PAGE CONTENT]`. Planned: `extract`, `fill_secret` |
+| Policy engine | **Implemented**: `allow` / `deny` / `confirm` from YAML facts (scheme, origin, method, form destination, field type) plus dynamic domains. No semantic layer yet |
+| Network guard | **Implemented**: two layers, both default-deny by origin (`page.route()` for every request, and a forced proxy that judges every redirect hop) |
+| Human confirmation | **Implemented**: form submits wait for the operator on the dashboard (`confirm_writes`); `ask_human` is a voluntary extra channel |
+| Secret vault | **Partial**: secrets live in a table of the local SQLite database, **in plain text** (encryption is planned). Used for the runtime's own login at startup, and every stored secret is redacted from what the model sees. Planned: `fill_secret`, secrets bound to origins |
+| Audit | **Implemented**: append-only JSONL with a SHA-256 hash chain, plus an `audit_logs` table in SQLite (not tamper-evident) |
+| Dashboard | **Implemented**: live telemetry, agent API keys, human approvals, domains, secrets. Admin token required |
 
 **Core rule:** policies may only *allow* actions based on facts that require no interpretation (origins, HTTP method, form target, field types, secret bindings). Semantic classification may only make a decision *stricter*.
 
-## What v0.1 implements
+## Quick start
 
-| Component | v0.1 |
-| --- | --- |
-| Tool server (MCP, stdio) | `navigate`, `observe`, `act` (click / type / press Enter), `back`, `finish`. Page content comes back marked `[UNTRUSTED PAGE CONTENT]` |
-| Network guard | Two layers, both default-deny by origin. `page.route()` judges every request (any method, any resource type, WebSockets). A **forced proxy** judges every hop, including redirects, which the browser follows without asking the route again. Writes only in the runtime's own login window |
-| Policy | YAML: allowed origins, `read_only` (default), action and time limits. Decisions use only scheme, origin, method, field type, form destination |
-| Login | Done by the runtime from environment variables; the agent never sees or types a credential, and `type` into password fields is denied |
-| Audit log | Append-only JSONL with a SHA-256 hash chain; `omotai.runtime.audit.verify` detects edits and deleted records |
+The fastest way to see it work is the Docker setup with the mock portal of [omotai/eval](https://github.com/omotai/eval): the agent browses the portal through the runtime, and you approve or deny its writes on the dashboard. Step by step in [docs/how-to-use.md](docs/how-to-use.md).
+
+```bash
+# .env (not committed): OMOTAI_ADMIN_TOKEN=<16+ characters>
+docker compose run --rm omotai-runtime omotai secret add portal-login <portal password>
+docker compose up -d --build     # runtime + dashboard on http://127.0.0.1:8000
+```
+
+Without Docker:
+
+```bash
+uv sync && uv run playwright install chromium
+export OMOTAI_LOGIN_USER=... OMOTAI_LOGIN_PASSWORD=...
+uv run omotai start --policy policies/eval-portal.yaml --audit runs/audit.jsonl   # stdio
+uv run omotai start --mode sse --policy policies/eval-portal-confirm.yaml         # SSE + dashboard on 127.0.0.1:8080
+```
+
+Connecting a client (Claude Code, Claude Desktop, ...) is in [docs/mcp-setup.md](docs/mcp-setup.md).
+
+## How it behaves
 
 **Human confirmation.** With `read_only: true` and `confirm_writes: true` (see `policies/eval-portal-confirm.yaml`), a form submit to an allowed origin is not denied but waits for the operator on the dashboard (Human Approvals). The runtime, not the model, asks: the text shown is built from facts (method, form URL, field names and values), and only `approved` or `denied` ever reaches the agent. An approval opens a write window for that exact request during that one action; if the page changed while the operator decided, or nobody answers within `confirm_timeout_seconds`, the action is denied. `max_confirmations` caps how often a session can ask. Writes that do not come from a form in the DOM (fetch/JS) stay denied. The `ask_human` tool remains as a voluntary extra channel; it does not gate anything by itself.
 
 **Dynamic domains.** Besides `allowed_origins` in the policy file, origins can be allowed or denied at runtime from the dashboard (Domains tab) or with `omotai domain add <origin> --allow|--deny` (`rm`, `list`). Deny wins over any allow, origins are normalized (`HTTP://Portal.TEST:80/x` becomes `http://portal.test`), and the runtime rereads the table at every agent action, so a change applies to the agent's next action without a restart. If the table cannot be read, the action is denied (`domains_unreadable`). The runtime's login at startup still needs its origin in the policy file or the table before it starts.
 
-Known limits of the guard: HTTPS through the proxy is judged by host and port only (methods on HTTPS are covered by `page.route()`); DNS and non-HTTP traffic are not controlled. For production, add a network-level firewall around the browser container.
+**Login and secrets.** The login is done by the runtime at startup, from the vault (`login.secret_id` in the policy) or from environment variables. The agent never sees or types a credential: `type` into password fields is denied and any stored secret in page text is replaced by `[redacted]`.
 
-Not in v0.1: `fill_secret` for mid-task credentials, any semantic layer, per-task capabilities beyond read-only, multi-origin sites (third-party assets and SSO must be listed in `allowed_origins` or they are blocked).
+**Two credentials, two doors.** The dashboard (`/api/*`) needs the admin token (`OMOTAI_ADMIN_TOKEN`, or the one printed on startup). The MCP endpoint (`/mcp` in SSE mode) needs an agent API key created on the dashboard. One does not open the other. Both `omotai start --dashboard` and `--mode sse` bind to `127.0.0.1` unless you pass `--host 0.0.0.0`.
 
-```bash
-# policy for the eval mock portal; credentials come from the environment
-export OMOTAI_LOGIN_USER=... OMOTAI_LOGIN_PASSWORD=...
-uv run python -m omotai.runtime start --policy policies/eval-portal.yaml --audit runs/audit.jsonl
-```
+**Data.** The SQLite database (agents, secrets, domains, approvals, audit table) lives at `runs/omotai.db`, relative to the working directory. Set `OMOTAI_DB=/path/to/file.db` to use another file, e.g. one database per evaluation run or a Docker volume.
 
-The local SQLite database (agents, secrets, dynamic domains, approvals, audit table) lives at `runs/omotai.db`, relative to the working directory. Set `OMOTAI_DB=/path/to/file.db` to use another file, e.g. one database per evaluation run.
+## Documentation
 
-**Dashboard security.** `omotai start --dashboard` / `--mode sse` binds to `127.0.0.1` by default; pass `--host 0.0.0.0` to serve the network (Docker does). Every `/api/*` route needs the admin token: set `OMOTAI_ADMIN_TOKEN` (16+ characters) or read the one printed on startup, then sign in on the dashboard (cookie) or send `Authorization: Bearer <token>`. `/mcp` is separate and uses agent API keys. Docker Compose requires `OMOTAI_ADMIN_TOKEN` in `.env`.
+| Document | What it covers |
+| --- | --- |
+| [docs/how-to-use.md](docs/how-to-use.md) | End-to-end walkthrough (Docker and local), scenarios to try, troubleshooting (in Portuguese) |
+| [docs/mcp-setup.md](docs/mcp-setup.md) | Transports, tools, connecting clients, credentials (in Portuguese) |
+| [docs/policy-reference.md](docs/policy-reference.md) | Every policy key, decision rules and `DENIED (...)` codes (in Portuguese) |
+| [docs/reference.md](docs/reference.md) | CLI, environment variables, dashboard API, database tables, audit events (in Portuguese) |
+| [Security evaluation reports](#security-evaluation-reports) | Empirical results against the OWASP AI Testing Guide |
 
-Tests that drive a real browser need Chromium: `uv run playwright install chromium`, or set `OMOTAI_BROWSER` to an existing executable.
+Known limits of the guard: HTTPS through the proxy is judged by host and port only (methods on HTTPS are covered by `page.route()`); DNS and non-HTTP traffic are not controlled. For production, add a network-level firewall around the browser container. In SSE mode all agents share one browser session, and the action and time limits are per process, not per connection. Not implemented: `fill_secret` for mid-task credentials, encrypted vault, any semantic layer, per-task capabilities beyond read-only, multi-origin sites (third-party assets and SSO must be listed in `allowed_origins` or they are blocked).
 
 ## Initial Benchmark: Runtime v0.1 vs. Playwright MCP
 
@@ -84,7 +100,7 @@ The empirical results of the Omotai Runtime's security and performance guarantee
 - A protocol for websites or a new action DSL.
 - Cross-session browsing memory.
 - Payments, CAPTCHA solving or bot-detection evasion.
-- Many concurrent agents, multi-browser adapters or a GUI.
+- Many concurrent agents, multi-browser adapters or a general-purpose GUI (the dashboard is a small operator console).
 
 Requests in these areas will be closed with a pointer to this list.
 
@@ -92,9 +108,12 @@ Requests in these areas will be closed with a pointer to this list.
 
 ```bash
 uv sync
+uv run playwright install chromium   # or set OMOTAI_BROWSER to an existing executable
 uv run ruff check .
 uv run pytest
 ```
+
+Tests never touch `runs/omotai.db`: an autouse fixture points the database at a temporary file. Tests that drive a real browser need Chromium.
 
 ## License
 
