@@ -161,7 +161,12 @@ def cli():
     "--dashboard/--no-dashboard", default=False, help="Enable the live telemetry dashboard"
 )
 @click.option("--port", default=8080, help="Dashboard port")
-def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int) -> None:
+@click.option(
+    "--host",
+    default="127.0.0.1",
+    help="Dashboard/SSE bind address (default loopback; use 0.0.0.0 to serve the network)",
+)
+def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int, host: str) -> None:
     """Start the MCP server."""
     # Handle API Key
     agent_key = os.environ.get("OMOTAI_AGENT_KEY")
@@ -202,13 +207,13 @@ def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int)
     if dashboard and mode != "sse":
         from omotai.dashboard.server import start_dashboard
 
-        click.secho(f"Starting Dashboard only on 0.0.0.0:{port}...", fg="green")
-        start_dashboard(port)
+        click.secho(f"Starting Dashboard only on {host}:{port}...", fg="green")
+        start_dashboard(port, host=host)
     elif mode == "sse":
         from omotai.dashboard.server import start_dashboard
 
-        click.secho(f"Starting Dashboard & SSE on 0.0.0.0:{port}...", fg="green")
-        start_dashboard(port, mcp_server=mcp, session=session)
+        click.secho(f"Starting Dashboard & SSE on {host}:{port}...", fg="green")
+        start_dashboard(port, mcp_server=mcp, session=session, host=host)
     elif mode == "stdio":
         mcp.run("stdio")
 

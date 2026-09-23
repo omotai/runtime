@@ -45,6 +45,8 @@ export OMOTAI_LOGIN_USER=... OMOTAI_LOGIN_PASSWORD=...
 uv run python -m omotai_runtime --policy policies/eval-portal.yaml --audit runs/audit.jsonl
 ```
 
+**Dashboard security.** `omotai start --dashboard` / `--mode sse` binds to `127.0.0.1` by default; pass `--host 0.0.0.0` to serve the network (Docker does). Every `/api/*` route needs the admin token: set `OMOTAI_ADMIN_TOKEN` (16+ characters) or read the one printed on startup, then sign in on the dashboard (cookie) or send `Authorization: Bearer <token>`. `/mcp` is separate and uses agent API keys. Docker Compose requires `OMOTAI_ADMIN_TOKEN` in `.env`.
+
 Tests that drive a real browser need Chromium: `uv run playwright install chromium`, or set `OMOTAI_BROWSER` to an existing executable.
 
 ## Initial Benchmark: Runtime v0.1 vs. Playwright MCP
