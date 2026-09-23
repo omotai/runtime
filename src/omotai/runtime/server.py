@@ -229,13 +229,13 @@ def domain():
 @click.option("--allow", is_flag=True, help="Allow this origin")
 @click.option("--deny", is_flag=True, help="Deny this origin")
 def add_domain(origin: str, allow: bool, deny: bool):
-    """Add a domain to the database."""
+    """Add a domain to the database. Deny wins over allow. Takes effect on the next start."""
     if allow and deny:
         click.secho("Error: Cannot specify both --allow and --deny.", fg="red", err=True)
-        return
+        raise SystemExit(1)
     if not allow and not deny:
         click.secho("Error: Must specify either --allow or --deny.", fg="red", err=True)
-        return
+        raise SystemExit(1)
 
     action = "allow" if allow else "deny"
 
@@ -256,12 +256,13 @@ def add_domain(origin: str, allow: bool, deny: bool):
                 click.secho(f"Domain {origin} updated to action {action}.", fg="yellow")
             else:
                 click.secho(f"Error: {e}", fg="red", err=True)
+                raise SystemExit(1) from e
 
 
 @domain.command(name="rm")
 @click.argument("origin")
 def rm_domain(origin: str):
-    """Remove a domain from the database."""
+    """Remove a domain from the database. Takes effect on the next start."""
     from omotai.dashboard.db import get_connection, init_db
 
     init_db()

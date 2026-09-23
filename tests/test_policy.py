@@ -139,3 +139,74 @@ def test_bad_denied_paths_config_fails_at_load(tmp_path, entry, why):
     )
     with pytest.raises(ValueError, match=why):
         Policy.load(f)
+
+
+def _domains_db(monkeypatch, tmp_path, rows):
+    import sqlite3
+
+    from omotai.dashboard import db
+
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "x.db")
+    db.init_db()
+    with sqlite3.connect(db.DB_PATH) as conn:
+        conn.executemany("INSERT INTO domains (origin, action) VALUES (?, ?)", rows)
+    return db
+
+
+def _yaml(tmp_path, origins):
+    f = tmp_path / "p.yaml"
+    f.write_text("allowed_origins: [" + ", ".join(origins) + "]", encoding="utf-8")
+    return f
+
+
+def test_db_deny_beats_yaml_allow(monkeypatch, tmp_path):
+    _domains_db(monkeypatch, tmp_path, [("http://portal.test/", "deny")])
+    p = Policy.load(_yaml(tmp_path, ["http://portal.test", "http://cdn.test"]))
+    assert p.check_navigate("http://portal.test/orders").rule == "origin_not_allowed"
+    assert p.check_navigate("http://cdn.test/a.js").allowed  # other origins untouched
+
+
+def test_db_allow_adds_origin_and_deny_beats_db_allow(monkeypatch, tmp_path):
+    _domains_db(
+        monkeypatch,
+        tmp_path,
+        [
+            ("http://new.test", "allow"),
+            ("http://both.test", "allow"),
+            ("http://both.test/", "deny"),
+        ],
+    )
+    p = Policy.load(_yaml(tmp_path, []))
+    assert p.check_navigate("http://new.test/").allowed
+    assert not p.check_navigate("http://both.test/").allowed
+
+
+def test_no_db_or_no_table_means_yaml_only(monkeypatch, tmp_path):
+    from omotai.dashboard import db
+
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "missing.db")
+    assert Policy.load(_yaml(tmp_path, ["http://portal.test"])).origin_allowed("http://portal.test")
+    (tmp_path / "empty.db").write_bytes(b"")  # exists, no tables
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "empty.db")
+    assert Policy.load(_yaml(tmp_path, ["http://portal.test"])).origin_allowed("http://portal.test")
+
+
+def test_unreadable_db_fails_the_load_instead_of_dropping_denies(monkeypatch, tmp_path):
+    import sqlite3
+
+    from omotai.dashboard import db
+
+    (tmp_path / "junk.db").write_bytes(b"this is not a sqlite file" * 10)
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "junk.db")
+    with pytest.raises(sqlite3.DatabaseError):
+        Policy.load(_yaml(tmp_path, ["http://portal.test"]))
+
+
+def test_domain_cli_exits_nonzero_on_bad_flags():
+    from click.testing import CliRunner
+
+    from omotai.runtime.server import cli
+
+    r = CliRunner()
+    assert r.invoke(cli, ["domain", "add", "http://a.test"]).exit_code == 1
+    assert r.invoke(cli, ["domain", "add", "http://a.test", "--allow", "--deny"]).exit_code == 1
