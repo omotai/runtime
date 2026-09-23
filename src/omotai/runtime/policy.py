@@ -91,10 +91,11 @@ class Policy:
     def load(cls, path: str | Path) -> "Policy":
         raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
         origins = set(origin_of(o) for o in raw.get("allowed_origins", []))
-        
+
         # Load from SQLite database
         try:
             from omotai.dashboard.db import get_connection
+
             with get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT origin FROM domains WHERE action = 'allow'")
@@ -104,9 +105,9 @@ class Policy:
         except Exception:  # noqa: S110
             # DB might not be initialized yet or table missing, fallback to yaml only
             pass
-            
+
         raw["allowed_origins"] = frozenset(origins)
-        
+
         entries = []
         for entry in raw.pop("denied_paths", None) or []:
             if set(entry) != {"origin", "path_prefix"}:

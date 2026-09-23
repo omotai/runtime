@@ -44,16 +44,12 @@ def build_server(policy: Policy, audit: Audit) -> tuple[MCPServer, Session]:
                 request=args,
                 response=result if len(result) < 1000 else result[:1000] + "... [truncated]",
                 verdict="ALLOW",
-                rule="mcp_execution"
+                rule="mcp_execution",
             )
             return result
         except Denied as e:
             audit.log(
-                event="tool_execution",
-                tool=tool_name,
-                request=args,
-                verdict="DENY",
-                rule=str(e)
+                event="tool_execution", tool=tool_name, request=args, verdict="DENY", rule=str(e)
             )
             return f"DENIED ({e})"
 
@@ -79,16 +75,17 @@ def build_server(policy: Policy, audit: Audit) -> tuple[MCPServer, Session]:
         """Click an element, type text into a field, or press Enter in a text field (press), by
         ref from the latest observation."""
         return await guarded(
-            "act", 
-            {"action": action, "ref": ref, "text": text}, 
-            session.act(action, ref, text)
+            "act", {"action": action, "ref": ref, "text": text}, session.act(action, ref, text)
         )
 
     @mcp.tool()
     async def finish(answer: str) -> str:
         """End the task with the final answer for the user."""
         result = session.finish(answer)
-        async def _ret(): return result
+
+        async def _ret():
+            return result
+
         return await guarded("finish", {"answer": answer}, _ret())
 
     return mcp, session
@@ -166,27 +163,22 @@ def add_domain(origin: str, allow: bool, deny: bool):
     if not allow and not deny:
         click.secho("Error: Must specify either --allow or --deny.", fg="red", err=True)
         return
-        
+
     action = "allow" if allow else "deny"
-    
+
     from omotai.dashboard.db import get_connection, init_db
+
     init_db()
-    
+
     with get_connection() as conn:
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                "INSERT INTO domains (origin, action) VALUES (?, ?)", 
-                (origin, action)
-            )
+            cursor.execute("INSERT INTO domains (origin, action) VALUES (?, ?)", (origin, action))
             conn.commit()
             click.secho(f"Domain {origin} added with action {action}.", fg="green")
         except Exception as e:
             if "UNIQUE constraint failed" in str(e):
-                cursor.execute(
-                    "UPDATE domains SET action = ? WHERE origin = ?",
-                    (action, origin)
-                )
+                cursor.execute("UPDATE domains SET action = ? WHERE origin = ?", (action, origin))
                 conn.commit()
                 click.secho(f"Domain {origin} updated to action {action}.", fg="yellow")
             else:
@@ -198,6 +190,7 @@ def add_domain(origin: str, allow: bool, deny: bool):
 def rm_domain(origin: str):
     """Remove a domain from the database."""
     from omotai.dashboard.db import get_connection, init_db
+
     init_db()
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -213,6 +206,7 @@ def rm_domain(origin: str):
 def list_domains():
     """List all dynamic domains in the database."""
     from omotai.dashboard.db import get_connection, init_db
+
     init_db()
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -220,11 +214,11 @@ def list_domains():
             "SELECT id, origin, action, created_at FROM domains ORDER BY created_at DESC"
         )
         rows = cursor.fetchall()
-        
+
         if not rows:
             click.secho("No domains found.", fg="yellow")
             return
-            
+
         click.secho(f"{'ID':<5} | {'ORIGIN':<40} | {'ACTION':<10} | {'CREATED AT'}", bold=True)
         click.secho("-" * 80)
         for row in rows:
@@ -244,13 +238,14 @@ def secret():
 def add_secret(key_name: str, secret_value: str):
     """Add a secret to the vault."""
     from omotai.dashboard.db import get_connection, init_db
+
     init_db()
     with get_connection() as conn:
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "INSERT INTO secrets (key_name, secret_value) VALUES (?, ?)", 
-                (key_name, secret_value)
+                "INSERT INTO secrets (key_name, secret_value) VALUES (?, ?)",
+                (key_name, secret_value),
             )
             conn.commit()
             click.secho(f"Secret {key_name} added to vault.", fg="green")
@@ -258,7 +253,7 @@ def add_secret(key_name: str, secret_value: str):
             if "UNIQUE constraint failed" in str(e):
                 cursor.execute(
                     "UPDATE secrets SET secret_value = ? WHERE key_name = ?",
-                    (secret_value, key_name)
+                    (secret_value, key_name),
                 )
                 conn.commit()
                 click.secho(f"Secret {key_name} updated in vault.", fg="yellow")
@@ -271,6 +266,7 @@ def add_secret(key_name: str, secret_value: str):
 def rm_secret(key_name: str):
     """Remove a secret from the vault."""
     from omotai.dashboard.db import get_connection, init_db
+
     init_db()
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -286,16 +282,17 @@ def rm_secret(key_name: str):
 def list_secrets():
     """List all secrets in the vault."""
     from omotai.dashboard.db import get_connection, init_db
+
     init_db()
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, key_name, created_at FROM secrets ORDER BY created_at DESC")
         rows = cursor.fetchall()
-        
+
         if not rows:
             click.secho("No secrets found.", fg="yellow")
             return
-            
+
         click.secho(f"{'ID':<5} | {'KEY_NAME':<40} | {'CREATED AT'}", bold=True)
         click.secho("-" * 80)
         for row in rows:

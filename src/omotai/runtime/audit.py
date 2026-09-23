@@ -15,10 +15,7 @@ def _digest(prev: str, record: dict) -> str:
 
 class Audit:
     def __init__(
-        self, 
-        path: str | Path, 
-        agent_key: str | None = None, 
-        session_id: str | None = None
+        self, path: str | Path, agent_key: str | None = None, session_id: str | None = None
     ):
         self.path = Path(path)
         self.agent_key = agent_key
@@ -37,12 +34,13 @@ class Audit:
 
         with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
-            
+
         self.prev = record["hash"]
-        
+
         # Save to SQLite
         try:
             from omotai.dashboard.db import get_connection
+
             with get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
@@ -61,8 +59,8 @@ class Audit:
                         event.get("verdict"),
                         event.get("rule"),
                         json.dumps(event.get("request")) if "request" in event else None,
-                        event.get("response")
-                    )
+                        event.get("response"),
+                    ),
                 )
                 conn.commit()
         except Exception:  # noqa: S110
