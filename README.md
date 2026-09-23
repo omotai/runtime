@@ -1,5 +1,9 @@
 # Omotai Runtime
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/release/python-3120/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 > **Status: pre-alpha (v0.1 in progress).** Not ready for use. Nothing here is a security guarantee yet.
 
 An MCP server that sits between an AI agent and the browser. **The model proposes, the runtime decides.**
@@ -43,19 +47,27 @@ uv run python -m omotai_runtime --policy policies/eval-portal.yaml --audit runs/
 
 Tests that drive a real browser need Chromium: `uv run playwright install chromium`, or set `OMOTAI_BROWSER` to an existing executable.
 
-## Benchmark Inicial: Runtime v0.1 vs. Playwright MCP
+## Initial Benchmark: Runtime v0.1 vs. Playwright MCP
 
-Primeira medição comparativa de utilidade na tarefa limpa (`clean`, n=5) operando com modelo local **Qwen 2.5 7B** (quantizado via Ollama, GPU GTX 1660 Super):
+First comparative utility measurement on the benign task (`clean`, n=5) operating with the local **Qwen 2.5 7B** model (quantized via Ollama, GTX 1660 Super GPU):
 
-| Métrica | Playwright MCP (Baseline) | Omotai Runtime v0.1 | Impacto do Runtime |
+| Metric | Playwright MCP (Baseline) | Omotai Runtime v0.1 | Runtime Impact |
 | :--- | :---: | :---: | :---: |
-| **Taxa de Sucesso** | **0 / 5 (0%)** | **4 / 5 (80%)** | **Tornou a tarefa viável (+80 p.p.)** |
-| **Tokens Médios** | 29.600 tokens | **5.000 tokens** | **-83% de consumo de contexto** |
-| **Tempo Médio** | 413 s (~7 min) | **60 s** | **7x mais rápido** |
+| **Success Rate** | **0 / 5 (0%)** | **4 / 5 (80%)** | **Made the task viable (+80 p.p.)** |
+| **Average Tokens** | 29,600 tokens | **5,000 tokens** | **-83% context consumption** |
+| **Average Time** | 413 s (~7 min) | **60 s** | **7x faster** |
 
-### Por que o Omotai Runtime viabilizou o modelo de 7B?
-- **Redução do inchaço de contexto:** O Playwright MCP acumula ~30k tokens de árvore de acessibilidade bruta em 3 a 4 passos de navegação, afogando o raciocínio de modelos locais de 7B/8B.
-- **Representação estruturada compacta:** O snapshot do Omotai Runtime mantém o contexto controlado em ~5k tokens, permitindo que o modelo planeje, navegue com a ferramenta `back` e conclua o fluxo com sucesso.
+### Why did Omotai Runtime make the 7B model viable?
+- **Context bloat reduction:** Playwright MCP accumulates ~30k tokens of raw accessibility tree across 3 to 4 navigation steps, drowning the reasoning of local 7B/8B models.
+- **Compact structured representation:** The Omotai Runtime snapshot keeps the context controlled at ~5k tokens, allowing the model to plan, navigate with the `back` tool, and complete the flow successfully.
+
+## Security Evaluation Reports
+
+The empirical results of the Omotai Runtime's security and performance guarantees are thoroughly documented in our scientific evaluation reports. These tests map directly to the OWASP AI Testing Guide (AITG).
+
+- [Consolidated Security Evaluation Report](docs/security-evaluation-report.md)
+- [Qwen 3.8 Flash & 2.5 7B: Runtime vs. Baseline](docs/results-qwen-runtime-vs-baseline.md)
+- [DeepSeek V4 Flash: Runtime vs. Baseline](docs/results-deepseek-runtime-vs-baseline.md)
 
 
 ## Non-goals

@@ -8,7 +8,7 @@ import pytest
 import yaml
 from conftest import PASSWORD
 
-from omotai_runtime.audit import verify
+from omotai.runtime.audit import verify
 
 from mcp import ClientSession, StdioServerParameters  # isort: skip
 from mcp.client.stdio import stdio_client  # isort: skip
@@ -40,7 +40,7 @@ def test_agent_sees_only_the_runtime_tools_and_cannot_leave_the_origin(site, tmp
     audit = tmp_path / "audit.jsonl"
     params = StdioServerParameters(
         command=sys.executable,
-        args=["-m", "omotai_runtime", "--policy", str(policy), "--audit", str(audit)],
+        args=["-m", "omotai.runtime", "start", "--policy", str(policy), "--audit", str(audit)],
         env={**os.environ, "T_USER": "cliente", "T_PASS": PASSWORD},
     )
 

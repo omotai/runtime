@@ -12,7 +12,7 @@ import asyncio
 from collections.abc import Callable
 from urllib.parse import urlsplit
 
-from omotai_runtime.policy import Decision
+from omotai.runtime.policy import Decision
 
 Decide = Callable[[str, str], Decision]  # (method, url) -> Decision; CONNECT arrives as GET
 Report = Callable[[str, str, Decision], None]

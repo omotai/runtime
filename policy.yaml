@@ -1,0 +1,13 @@
+allowed_origins:
+  - "http://localhost"
+  - "http://localhost:3000"
+  - "http://localhost:8080"
+  - "http://127.0.0.1:8080"
+  - "http://localhost:8000"
+  - "http://127.0.0.1"
+  - "http://127.0.0.1:3000"
+  - "http://omotai-ui:8080"
+
+read_only: false
+max_actions: 100
+max_seconds: 3600

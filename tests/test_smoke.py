@@ -1,5 +1,5 @@
-import omotai_runtime
+import omotai.runtime
 
 
 def test_version():
-    assert omotai_runtime.__version__
+    assert omotai.runtime.__version__
