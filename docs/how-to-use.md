@@ -1,6 +1,6 @@
 # Como usar o Omotai Runtime (passo a passo)
 
-Este guia leva você de zero até ver um agente de IA navegando num portal **através do runtime**, com o operador (você) aprovando ou negando as escritas em tempo real. Tudo aqui foi executado de ponta a ponta antes de ser escrito.
+Este guia leva você de zero até ver um agente de IA navegando num portal **através do runtime**, com o operador (você) aprovando ou negando as escritas em tempo real. O que foi verificado ao vivo: o caminho com Docker (seção 3), a confirmação com aprovar e negar (4.1) e o login pelo cofre. Os cenários 4.2 (domínios) e os `DENIED` de 4.3 têm testes automatizados, mas não foram exercitados ao vivo com um agente; 4.4, 4.5 e o caminho local (seção 8) descrevem o comportamento do código e ainda não foram executados.
 
 Para os detalhes de cada peça, veja também: [mcp-setup.md](mcp-setup.md) (conectar clientes), [policy-reference.md](policy-reference.md) (policy e códigos de negação) e [reference.md](reference.md) (CLI, API, banco, audit).
 
