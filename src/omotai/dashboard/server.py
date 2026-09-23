@@ -42,6 +42,10 @@ class SecretCreate(BaseModel):
     secret_value: str
 
 
+class ApprovalUpdate(BaseModel):
+    status: str
+
+
 # API Routes
 @app.post("/api/agents")
 def create_agent(agent: AgentCreate):
@@ -105,6 +109,38 @@ def delete_secret(secret_id: int):
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM secrets WHERE id = ?", (secret_id,))
+        conn.commit()
+        return {"status": "ok"}
+
+
+@app.get("/api/approvals")
+def list_approvals():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, session_id, reason, status, created_at "
+            "FROM approvals ORDER BY id DESC LIMIT 50"
+        )
+        rows = cursor.fetchall()
+        return [
+            {
+                "id": r[0],
+                "session_id": r[1],
+                "reason": r[2],
+                "status": r[3],
+                "created_at": r[4],
+            }
+            for r in rows
+        ]
+
+
+@app.post("/api/approvals/{approval_id}")
+def update_approval(approval_id: int, update: ApprovalUpdate):
+    if update.status not in ("approved", "denied"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE approvals SET status = ? WHERE id = ?", (update.status, approval_id))
         conn.commit()
         return {"status": "ok"}
 

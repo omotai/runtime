@@ -48,7 +48,7 @@ def test_agent_sees_only_the_runtime_tools_and_cannot_leave_the_origin(site, tmp
         async with stdio_client(params) as (r, w), ClientSession(r, w) as s:
             await s.initialize()
             names = {t.name for t in (await s.list_tools()).tools}
-            assert names == {"navigate", "observe", "back", "act", "finish"}
+            assert names == {"navigate", "observe", "back", "act", "finish", "ask_human"}
             page = text(await s.call_tool("navigate", {"url": site.portal_url + "/orders/1"}))
             assert "[UNTRUSTED PAGE CONTENT" in page and "Status: Enviado" in page
             assert PASSWORD not in page
@@ -59,3 +59,48 @@ def test_agent_sees_only_the_runtime_tools_and_cannot_leave_the_origin(site, tmp
     asyncio.run(go())
     assert site.attacker_hits == [] and site.logins == 1
     assert verify(audit) and PASSWORD not in audit.read_text(encoding="utf-8")
+
+
+def test_ask_human(tmp_path):
+    import sqlite3
+
+    from omotai.dashboard.db import DB_PATH, init_db
+
+    # Initialize DB so the tables exist
+    init_db()
+
+    policy = tmp_path / "policy.yaml"
+    policy.write_text("allowed_origins: []", encoding="utf-8")
+    audit = tmp_path / "audit.jsonl"
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=["-m", "omotai.runtime", "start", "--policy", str(policy), "--audit", str(audit)],
+        env=os.environ,
+    )
+
+    async def go():
+        async with stdio_client(params) as (r, w), ClientSession(r, w) as s:
+            await s.initialize()
+
+            # Create a task to call ask_human
+            task = asyncio.create_task(s.call_tool("ask_human", {"reason": "Are you human?"}))
+
+            # Wait a bit for the tool to insert into DB
+            await asyncio.sleep(1)
+
+            # Manually approve in the DB
+            with sqlite3.connect(DB_PATH) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE approvals SET status = 'approved' WHERE reason = 'Are you human?'"
+                )
+                conn.commit()
+
+            result = text(await task)
+            assert result == "approved"
+
+            # Test timeout fallback (assuming we don't want to wait 30s, we mock or skip)
+            # Actually we can't easily mock wait_for in the child process.
+            # We'll just test the DB interaction for now.
+
+    asyncio.run(go())

@@ -49,7 +49,7 @@ class Audit:
                 cursor.execute(
                     """
                     INSERT INTO audit_logs 
-                    (agent_key, session_id, event, tool, url, verdict, rule, request_payload, 
+                    (agent_name, session_id, event, tool, url, verdict, rule, request_payload, 
                     response_payload)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,

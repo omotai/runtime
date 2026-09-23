@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (targetId === 'agents-view') loadAgents();
             if (targetId === 'secrets-view') loadSecrets();
+            if (targetId === 'approvals-view') loadApprovals();
         });
     });
 
@@ -109,6 +110,67 @@ document.addEventListener('DOMContentLoaded', () => {
         await fetch(`/api/secrets/${id}`, { method: 'DELETE' });
         loadSecrets();
     };
+
+    // Approvals API
+    const approvalsTableBody = document.getElementById('approvals-table-body');
+    let approvalsInterval = null;
+
+    async function loadApprovals() {
+        try {
+            const res = await fetch('/api/approvals');
+            const approvals = await res.json();
+            approvalsTableBody.innerHTML = '';
+            approvals.forEach(a => {
+                const tr = document.createElement('tr');
+                
+                const tdReason = document.createElement('td');
+                tdReason.textContent = a.reason;
+                
+                const tdSessionId = document.createElement('td');
+                tdSessionId.textContent = a.session_id.substring(0, 8) + '...';
+                
+                const tdDate = document.createElement('td');
+                tdDate.textContent = new Date(a.created_at).toLocaleString();
+
+                const tdStatus = document.createElement('td');
+                tdStatus.innerHTML = `<span style="font-weight: bold; color: ${a.status === 'pending' ? 'orange' : (a.status === 'approved' ? 'green' : 'red')}">${a.status}</span>`;
+
+                const tdActions = document.createElement('td');
+                if (a.status === 'pending') {
+                    tdActions.innerHTML = `
+                        <button class="btn primary" onclick="resolveApproval(${a.id}, 'approved')" style="margin-right: 8px;">Approve</button>
+                        <button class="btn danger" onclick="resolveApproval(${a.id}, 'denied')">Deny</button>
+                    `;
+                }
+                
+                tr.appendChild(tdReason);
+                tr.appendChild(tdSessionId);
+                tr.appendChild(tdDate);
+                tr.appendChild(tdStatus);
+                tr.appendChild(tdActions);
+                
+                approvalsTableBody.appendChild(tr);
+            });
+        } catch(e) {
+            console.error("Failed to load approvals", e);
+        }
+    }
+
+    window.resolveApproval = async (id, status) => {
+        await fetch(`/api/approvals/${id}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({status})
+        });
+        loadApprovals();
+    };
+
+    setInterval(() => {
+        const approvalsView = document.getElementById('approvals-view');
+        if (approvalsView && approvalsView.classList.contains('active')) {
+            loadApprovals();
+        }
+    }, 2000);
 
     // Logs SSE Setup
     const logsOutput = document.getElementById('logs-output');
