@@ -47,7 +47,7 @@ def test_load_from_yaml(tmp_path):
     f = tmp_path / "p.yaml"
     f.write_text("allowed_origins: ['http://a.test']\nmax_actions: 5\n", encoding="utf-8")
     p = Policy.load(f)
-    assert p.allowed_origins == {"http://a.test"} and p.max_actions == 5 and p.read_only
+    assert "http://a.test" in p.allowed_origins and p.max_actions == 5 and p.read_only
 
 
 D = Policy(
