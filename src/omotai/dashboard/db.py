@@ -33,7 +33,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS audit_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                agent_key TEXT,
+                agent_name TEXT,
                 session_id TEXT,
                 event TEXT,
                 tool TEXT,

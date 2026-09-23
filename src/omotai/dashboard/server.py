@@ -1,7 +1,9 @@
 import asyncio
+import hmac
 import os
 import threading
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -11,8 +13,20 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from omotai.dashboard.db import get_connection, init_db
+from omotai.runtime.audit import current_agent_name
 
-app = FastAPI(title="Omotai Runtime Dashboard")
+
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    session = getattr(app.state, "session", None)
+    if session:
+        await session.start()
+    yield
+    if session:
+        await session.close()
+
+
+app = FastAPI(title="Omotai Runtime Dashboard", lifespan=app_lifespan)
 
 # Initialize DB on startup
 init_db()
@@ -114,6 +128,58 @@ async def stream_logs():
     return EventSourceResponse(log_generator())
 
 
+class SseAuthMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        headers = dict(scope.get("headers", []))
+        auth_header = headers.get(b"authorization", b"").decode("utf-8")
+
+        if not auth_header.startswith("Bearer "):
+            await self._send_401(send)
+            return
+
+        token = auth_header.split(" ")[1]
+
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            # Fetch all to use compare_digest (avoids timing attacks)
+            cursor.execute("SELECT name, api_key FROM agents")
+            rows = cursor.fetchall()
+
+            valid_agent = None
+            for row in rows:
+                if hmac.compare_digest(row[1], token):
+                    valid_agent = row[0]
+                    break
+
+            if not valid_agent:
+                await self._send_401(send)
+                return
+
+        current_agent_name.set(valid_agent)
+        await self.app(scope, receive, send)
+
+    async def _send_401(self, send):
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 401,
+                "headers": [(b"content-type", b"text/plain")],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": b"Unauthorized",
+            }
+        )
+
+
 # Static files (Frontend)
 static_dir = Path(__file__).parent / "static"
 os.makedirs(static_dir, exist_ok=True)
@@ -126,7 +192,23 @@ if not (static_dir / "index.html").exists():
 app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 
 
-def start_dashboard(port: int = 8080):
+def start_dashboard(port: int = 8080, mcp_server=None, session=None):
+    if mcp_server:
+        # Mount the MCP SSE app protected by the Auth Middleware
+        # We must insert it before the static catch-all route
+        mcp_app = SseAuthMiddleware(mcp_server.sse_app())
+
+        # We can use FastAPI's mount
+        from starlette.routing import Mount
+
+        mcp_mount = Mount("/mcp", app=mcp_app)
+
+        # Insert at the beginning so it precedes the "/" static mount
+        app.routes.insert(0, mcp_mount)
+
+    app.state.mcp_server = mcp_server
+    app.state.session = session
+
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")  # noqa: S104
 
 
