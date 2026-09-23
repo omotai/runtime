@@ -140,6 +140,11 @@ def cli():
 )
 def start(policy: str, audit: str | None, mode: str, dashboard: bool, port: int, host: str) -> None:
     """Start the MCP server."""
+    # Every mode needs the tables (approvals, audit, domains, vault); only the dashboard used to
+    # create them, so a plain stdio run got an empty database and confirmations failed.
+    from omotai.dashboard.db import init_db
+
+    init_db()
     # Handle API Key
     agent_key = os.environ.get("OMOTAI_AGENT_KEY")
     agent_name = None

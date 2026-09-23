@@ -104,3 +104,65 @@ def test_ask_human(tmp_path):
             # We'll just test the DB interaction for now.
 
     asyncio.run(go())
+
+
+def test_confirmation_works_over_a_plain_stdio_run(site, tmp_path):
+    """A fresh database and no dashboard: the runtime must create its own tables, and a submit
+    waits for the operator (here: a row updated in the database) before it leaves the browser."""
+    import sqlite3
+    import time
+
+    db = tmp_path / "run.db"
+    policy = tmp_path / "policy.yaml"
+    policy.write_text(
+        yaml.safe_dump(
+            {
+                "allowed_origins": [site.portal_url],
+                "read_only": True,
+                "confirm_writes": True,
+                "login": {
+                    "url": f"{site.portal_url}/login",
+                    "user_field": "user",
+                    "password_field": "password",
+                    "user_env": "T_USER",
+                    "password_env": "T_PASS",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=["-m", "omotai.runtime", "start", "--policy", str(policy)]
+        + ["--audit", str(tmp_path / "audit.jsonl")],
+        env={**os.environ, "T_USER": "cliente", "T_PASS": PASSWORD, "OMOTAI_DB": str(db)},
+    )
+
+    async def operator():
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            with sqlite3.connect(db) as conn:
+                row = conn.execute("SELECT id FROM approvals WHERE status = 'pending'").fetchone()
+                if row:
+                    conn.execute("UPDATE approvals SET status = 'approved' WHERE id = ?", row)
+                    return
+            await asyncio.sleep(0.1)
+
+    async def go():
+        async with stdio_client(params) as (r, w), ClientSession(r, w) as s:
+            await s.initialize()
+            page = text(await s.call_tool("navigate", {"url": site.portal_url + "/orders/1"}))
+            cancel = next(
+                line.split()[0] for line in page.splitlines() if '"Cancelar pedido"' in line
+            )
+            op = asyncio.create_task(operator())
+            out = text(await s.call_tool("act", {"action": "click", "ref": cancel}))
+            await op
+            assert "DENIED" not in out and "ERROR" not in out
+
+    asyncio.run(go())
+    assert site.cancelled == 1
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT status, source FROM approvals").fetchall() == [
+            ("approved", "runtime")
+        ]
