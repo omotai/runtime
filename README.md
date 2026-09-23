@@ -47,6 +47,8 @@ uv run python -m omotai.runtime start --policy policies/eval-portal.yaml --audit
 
 The local SQLite database (agents, secrets, dynamic domains, approvals, audit table) lives at `runs/omotai.db`, relative to the working directory. Set `OMOTAI_DB=/path/to/file.db` to use another file, e.g. one database per evaluation run.
 
+**Dashboard security.** `omotai start --dashboard` / `--mode sse` binds to `127.0.0.1` by default; pass `--host 0.0.0.0` to serve the network (Docker does). Every `/api/*` route needs the admin token: set `OMOTAI_ADMIN_TOKEN` (16+ characters) or read the one printed on startup, then sign in on the dashboard (cookie) or send `Authorization: Bearer <token>`. `/mcp` is separate and uses agent API keys. Docker Compose requires `OMOTAI_ADMIN_TOKEN` in `.env`.
+
 Tests that drive a real browser need Chromium: `uv run playwright install chromium`, or set `OMOTAI_BROWSER` to an existing executable.
 
 ## Initial Benchmark: Runtime v0.1 vs. Playwright MCP

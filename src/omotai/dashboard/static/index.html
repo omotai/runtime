@@ -8,6 +8,15 @@
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+    <div id="login-overlay" class="login-overlay" style="display: none;">
+        <form id="login-form" class="login-box">
+            <h2>Admin token</h2>
+            <p>Printed in the runtime's terminal on startup, or the value of OMOTAI_ADMIN_TOKEN.</p>
+            <input type="password" id="login-token" class="input-field" placeholder="Admin token" autocomplete="off">
+            <button type="submit" class="btn primary">Sign in</button>
+            <p id="login-error" class="login-error"></p>
+        </form>
+    </div>
     <div class="app-container">
         <aside class="sidebar">
             <div class="logo">

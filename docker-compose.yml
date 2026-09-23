@@ -7,15 +7,16 @@ services:
       dockerfile: src/omotai/dashboard/Dockerfile
     container_name: omotai-ui
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./runs:/app/runs
-    command: ["omotai", "start", "--dashboard", "--port", "8080", "--policy", "/app/policy.yaml"]
+    command: ["omotai", "start", "--dashboard", "--host", "0.0.0.0", "--port", "8080", "--policy", "/app/policy.yaml"]
     stdin_open: true
     tty: true
     environment:
       - PYTHONUNBUFFERED=1
       - OMOTAI_AGENT_KEY=dashboard-default-key
+      - OMOTAI_ADMIN_TOKEN=${OMOTAI_ADMIN_TOKEN:?set OMOTAI_ADMIN_TOKEN (16+ characters) in .env}
 
   omotai-runtime:
     build:
@@ -26,9 +27,10 @@ services:
       - "8000:8000"
     volumes:
       - ./runs:/app/runs
-    command: ["omotai", "start", "--mode", "sse", "--port", "8000", "--policy", "/app/policy.yaml"]
+    command: ["omotai", "start", "--mode", "sse", "--host", "0.0.0.0", "--port", "8000", "--policy", "/app/policy.yaml"]
     stdin_open: true
     tty: true
     environment:
       - PYTHONUNBUFFERED=1
       - OMOTAI_AGENT_KEY=dashboard-default-key
+      - OMOTAI_ADMIN_TOKEN=${OMOTAI_ADMIN_TOKEN:?set OMOTAI_ADMIN_TOKEN (16+ characters) in .env}

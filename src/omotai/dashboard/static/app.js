@@ -1,4 +1,29 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Admin login: any 401 from the API (except the login call itself) shows the token prompt.
+    const loginOverlay = document.getElementById('login-overlay');
+    const rawFetch = window.fetch.bind(window);
+    window.fetch = async (...args) => {
+        const res = await rawFetch(...args);
+        if (res.status === 401 && !String(args[0]).startsWith('/api/login')) {
+            loginOverlay.style.display = 'flex';
+        }
+        return res;
+    };
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({token: document.getElementById('login-token').value})
+        });
+        if (res.ok) {
+            location.reload();
+        } else {
+            document.getElementById('login-error').textContent = 'Invalid token';
+        }
+    });
+    fetch('/api/me');
+
     // Navigation
     const navItems = document.querySelectorAll('.nav-item');
     const viewSections = document.querySelectorAll('.view-section');

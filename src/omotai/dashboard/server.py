@@ -1,16 +1,20 @@
 import asyncio
 import hmac
 import os
+import secrets
 import threading
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import click
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
+from starlette.requests import HTTPConnection
+from starlette.responses import PlainTextResponse
 
 from omotai.dashboard.db import get_connection, init_db
 from omotai.runtime.audit import current_agent_name
@@ -26,7 +30,38 @@ async def app_lifespan(app: FastAPI):
         await session.close()
 
 
+ADMIN_COOKIE = "omotai_admin"
+LOOPBACK = ("127.0.0.1", "localhost", "::1")
+
+
+def _admin_ok(app, presented: str | None) -> bool:
+    token = getattr(app.state, "admin_token", None)
+    if not token or not presented:
+        return False
+    return hmac.compare_digest(presented.encode(), token.encode())
+
+
+class AdminAuthMiddleware:
+    """Every /api/* route needs the admin token (Bearer header or cookie), so a route added later
+    is protected by default. No token configured = nothing gets in. /mcp has its own agent keys."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        path = scope.get("path", "")
+        if scope["type"] == "http" and path.startswith("/api/") and path != "/api/login":
+            conn = HTTPConnection(scope)
+            auth = conn.headers.get("authorization", "")
+            presented = auth[7:] if auth.startswith("Bearer ") else conn.cookies.get(ADMIN_COOKIE)
+            if not _admin_ok(scope["app"], presented):
+                await PlainTextResponse("Unauthorized", status_code=401)(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
 app = FastAPI(title="Omotai Runtime Dashboard", lifespan=app_lifespan)
+app.add_middleware(AdminAuthMiddleware)
 
 # Initialize DB on startup
 init_db()
@@ -46,6 +81,10 @@ class ApprovalUpdate(BaseModel):
     status: str
 
 
+class Login(BaseModel):
+    token: str
+
+
 def mask_api_key(key: str) -> str:
     prefix = "sk-omotai-"
     if key.startswith(prefix):
@@ -59,6 +98,19 @@ def mask_api_key(key: str) -> str:
 
 
 # API Routes
+@app.post("/api/login")
+def login(body: Login, request: Request, response: Response):
+    if not _admin_ok(request.app, body.token):
+        raise HTTPException(status_code=401, detail="Invalid token")
+    response.set_cookie(ADMIN_COOKIE, body.token, httponly=True, samesite="strict", path="/")
+    return {"status": "ok"}
+
+
+@app.get("/api/me")
+def me():
+    return {"status": "ok"}
+
+
 @app.post("/api/agents")
 def create_agent(agent: AgentCreate):
     api_key = f"sk-omotai-{uuid.uuid4().hex}"
@@ -243,7 +295,28 @@ if not (static_dir / "index.html").exists():
 app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 
 
-def start_dashboard(port: int = 8080, mcp_server=None, session=None):
+def start_dashboard(
+    port: int = 8080,
+    mcp_server=None,
+    session=None,
+    host: str = "127.0.0.1",
+    admin_token: str | None = None,
+):
+    token = admin_token or os.environ.get("OMOTAI_ADMIN_TOKEN")
+    if token and len(token) < 16:
+        raise click.ClickException("OMOTAI_ADMIN_TOKEN must have at least 16 characters")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        click.secho(f"Dashboard admin token (this run only): {token}", fg="yellow", err=True)
+    app.state.admin_token = token
+    if host not in LOOPBACK:
+        click.secho(
+            f"WARNING: dashboard reachable from the network on {host}:{port}; /api/* needs the "
+            "admin token, /mcp needs an agent key. Prefer TLS in front of it.",
+            fg="yellow",
+            err=True,
+        )
+
     if mcp_server:
         # Mount the MCP SSE app protected by the Auth Middleware
         # We must insert it before the static catch-all route
@@ -260,7 +333,7 @@ def start_dashboard(port: int = 8080, mcp_server=None, session=None):
     app.state.mcp_server = mcp_server
     app.state.session = session
 
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")  # noqa: S104
+    uvicorn.run(app, host=host, port=port, log_level="info")
 
 
 def run_in_background(port: int = 8080):
