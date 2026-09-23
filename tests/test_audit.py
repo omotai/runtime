@@ -1,4 +1,4 @@
-from omotai_runtime.audit import Audit, verify
+from omotai.runtime.audit import Audit, verify
 
 
 def test_chain_verifies_and_survives_reopen(tmp_path):

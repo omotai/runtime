@@ -17,9 +17,9 @@ from urllib.parse import urldefrag
 
 from playwright.async_api import async_playwright
 
-from omotai_runtime.audit import Audit
-from omotai_runtime.netguard import Proxy
-from omotai_runtime.policy import Decision, Policy, deny
+from omotai.runtime.audit import Audit
+from omotai.runtime.netguard import Proxy
+from omotai.runtime.policy import Decision, Policy, deny
 
 ENUM_JS = """
 () => {
@@ -59,6 +59,17 @@ class Session:
         self.started = 0.0
         self.answer: str | None = None
         self._secrets: list[str] = []
+
+        try:
+            from omotai.dashboard.db import get_connection
+
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT secret_value FROM secrets")
+                for row in cursor.fetchall():
+                    self._secrets.append(row[0])
+        except Exception:  # noqa: S110
+            pass
 
     async def start(self) -> None:
         self._pw = await async_playwright().start()
@@ -172,6 +183,15 @@ class Session:
 
     async def navigate(self, url: str) -> str:
         self._step("navigate")
+        if url.lower().startswith(("javascript:", "file:", "data:", "vbs:")):
+            self.audit.log(
+                event="sanitization",
+                tool="navigate",
+                url=self._redact(url),
+                verdict="deny",
+                rule="unsafe_scheme",
+            )
+            return "DENIED (unsafe_scheme)"
         d = self.policy.check_navigate(url)
         self.audit.log(event="decision", tool="navigate", url=url, verdict=d.verdict, rule=d.rule)
         if not d.allowed:
@@ -227,6 +247,11 @@ class Session:
 
     async def act(self, action: str, ref: str, text: str | None = None) -> str:
         self._step("act")
+        if not ref.isalnum():
+            self.audit.log(
+                event="sanitization", tool="act", ref=ref, verdict="deny", rule="unsafe_ref"
+            )
+            return "DENIED (unsafe_ref)"
         if action not in ("click", "type", "press"):
             return "DENIED (unsupported_action)"
         if action == "press" and text not in (None, "Enter"):  # Enter is the only key
