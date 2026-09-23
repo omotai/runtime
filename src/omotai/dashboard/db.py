@@ -2,7 +2,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path("runs/omotai.db")
+DB_PATH = Path(os.environ.get("OMOTAI_DB", "runs/omotai.db"))
 
 
 def init_db():
